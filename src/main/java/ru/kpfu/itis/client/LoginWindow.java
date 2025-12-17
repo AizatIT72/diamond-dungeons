@@ -3,8 +3,10 @@ package ru.kpfu.itis.client;
 import ru.kpfu.itis.common.GameConstants;
 
 import javax.swing.*;
+import javax.swing.plaf.basic.ComboPopup;
 import java.awt.*;
 import java.awt.event.*;
+import java.awt.image.BufferedImage;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 
@@ -20,7 +22,7 @@ public class LoginWindow extends JFrame {
 
     public LoginWindow() {
         setTitle("Diamond Dungeons - Вход");
-        setSize(600, 550);
+        setSize(1200, 900);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
         setResizable(true);
@@ -39,7 +41,7 @@ public class LoginWindow extends JFrame {
         gbc.fill = GridBagConstraints.HORIZONTAL;
 
         // Заголовок
-        JLabel titleLabel = new JLabel("💎 DIAMOND DUNGEONS", SwingConstants.CENTER);
+        JLabel titleLabel = new JLabel("<html><nobr><center>💎 DIAMOND DUNGEONS</center></nobr></html>", SwingConstants.CENTER);
         titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 32));
         titleLabel.setForeground(new Color(255, 215, 0));
         gbc.gridx = 0; gbc.gridy = 0; gbc.gridwidth = 2;
@@ -67,8 +69,36 @@ public class LoginWindow extends JFrame {
         gbc.gridx = 0; gbc.gridy = 3;
         mainPanel.add(charLabel, gbc);
 
-        characterCombo = new JComboBox<>(GameConstants.CHARACTER_NAMES);
-        styleComboBox(characterCombo);
+        // Создаем ComboBox с кастомной отрисовкой для прозрачности
+        final Color baseColor = new Color(60, 64, 72);
+        final float[] comboHoverAlpha = {1.0f};
+        final int[] hoveredIndex = {-1};
+        
+        characterCombo = new JComboBox<String>(GameConstants.CHARACTER_NAMES) {
+            @Override
+            protected void paintComponent(Graphics g) {
+                // Создаем буфер для отрисовки с прозрачностью
+                if (getWidth() <= 0 || getHeight() <= 0) return;
+                
+                BufferedImage buffer = new BufferedImage(getWidth(), getHeight(), BufferedImage.TYPE_INT_ARGB);
+                Graphics2D g2dBuffer = buffer.createGraphics();
+                g2dBuffer.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                
+                // Рисуем весь компонент в буфер
+                super.paintComponent(g2dBuffer);
+                
+                g2dBuffer.dispose();
+                
+                // Теперь рисуем буфер с прозрачностью на экран
+                Graphics2D g2d = (Graphics2D) g.create();
+                g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, comboHoverAlpha[0]));
+                g2d.drawImage(buffer, 0, 0, null);
+                g2d.dispose();
+            }
+        };
+        
+        styleComboBox(characterCombo, comboHoverAlpha, hoveredIndex);
         gbc.gridx = 1;
         mainPanel.add(characterCombo, gbc);
 
@@ -111,7 +141,7 @@ public class LoginWindow extends JFrame {
         mainPanel.add(buttonPanel, gbc);
 
         // Статус
-        statusLabel = new JLabel("✅ Готов к подключению", SwingConstants.CENTER);
+        statusLabel = new JLabel("<html><nobr><center>✅ Готов к подключению</center></nobr></html>", SwingConstants.CENTER);
         statusLabel.setFont(new Font("Segoe UI", Font.BOLD, 14));
         statusLabel.setForeground(new Color(100, 255, 100));
         gbc.gridy = 7; gbc.insets = new Insets(20, 0, 0, 0);
@@ -143,7 +173,9 @@ public class LoginWindow extends JFrame {
     }
 
     private JLabel createStyledLabel(String text) {
-        JLabel label = new JLabel(text);
+        // Используем HTML с CSS стилями для предотвращения переноса текста
+        // white-space: nowrap предотвращает перенос, display: inline-block сохраняет размер
+        JLabel label = new JLabel("<html><div style='white-space: nowrap; display: inline-block;'>" + text + "</div></html>");
         label.setFont(new Font("Segoe UI", Font.BOLD, 16));
         label.setForeground(Color.WHITE);
         return label;
@@ -162,34 +194,208 @@ public class LoginWindow extends JFrame {
         return field;
     }
 
-    private void styleComboBox(JComboBox<String> combo) {
+    private void styleComboBox(JComboBox<String> combo, final float[] hoverAlpha, final int[] hoveredIndex) {
+        final Color baseColor = new Color(60, 64, 72);
+        
         combo.setFont(new Font("Segoe UI", Font.PLAIN, 14));
-        combo.setBackground(new Color(60, 64, 72));
+        combo.setBackground(baseColor);
         combo.setForeground(Color.WHITE);
-        combo.setBorder(BorderFactory.createEmptyBorder(8, 12, 8, 12));
+        combo.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(new Color(100, 100, 120), 1),
+                BorderFactory.createEmptyBorder(8, 12, 8, 12)
+        ));
+        
+        // Кастомный класс для элемента списка с прозрачностью
+        class TransparentListCell extends JLabel {
+            private final int cellIndex;
+            
+            public TransparentListCell(int index) {
+                this.cellIndex = index;
+                setFont(combo.getFont());
+                setForeground(Color.WHITE);
+                setBackground(baseColor);
+                setOpaque(true);
+                setBorder(BorderFactory.createEmptyBorder(4, 8, 4, 8));
+            }
+            
+            @Override
+            protected void paintComponent(Graphics g) {
+                // Применяем прозрачность, если элемент под курсором
+                float alpha = (cellIndex == hoveredIndex[0]) ? 0.75f : 1.0f;
+                
+                if (getWidth() <= 0 || getHeight() <= 0) return;
+                
+                // Создаем буфер для отрисовки с прозрачностью
+                BufferedImage buffer = new BufferedImage(getWidth(), getHeight(), BufferedImage.TYPE_INT_ARGB);
+                Graphics2D g2dBuffer = buffer.createGraphics();
+                g2dBuffer.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                
+                // Рисуем фон
+                g2dBuffer.setColor(baseColor);
+                g2dBuffer.fillRect(0, 0, getWidth(), getHeight());
+                
+                // Рисуем текст
+                g2dBuffer.setColor(getForeground());
+                g2dBuffer.setFont(getFont());
+                FontMetrics fm = g2dBuffer.getFontMetrics();
+                String text = getText();
+                if (text != null) {
+                    int textY = (getHeight() + fm.getAscent()) / 2 - 2;
+                    g2dBuffer.drawString(text, 8, textY);
+                }
+                
+                g2dBuffer.dispose();
+                
+                // Рисуем буфер с прозрачностью на экран
+                Graphics2D g2d = (Graphics2D) g.create();
+                g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
+                g2d.drawImage(buffer, 0, 0, null);
+                g2d.dispose();
+            }
+        }
+        
+        // Кастомный рендерер для элементов списка с прозрачностью при наведении
+        combo.setRenderer(new ListCellRenderer<String>() {
+            @Override
+            public Component getListCellRendererComponent(JList<? extends String> list, String value, int index,
+                    boolean isSelected, boolean cellHasFocus) {
+                TransparentListCell cell = new TransparentListCell(index);
+                cell.setText(value != null ? value : "");
+                return cell;
+            }
+        });
+        
+        // Устанавливаем цвета через UIManager
+        UIManager.put("ComboBox.background", baseColor);
+        UIManager.put("ComboBox.buttonBackground", baseColor);
+        UIManager.put("ComboBox.selectionBackground", baseColor);
+        UIManager.put("ComboBox.selectionForeground", Color.WHITE);
+        
+        // Кастомный UI
+        combo.setUI(new javax.swing.plaf.basic.BasicComboBoxUI() {
+            @Override
+            protected JButton createArrowButton() {
+                JButton button = new JButton();
+                button.setBackground(baseColor);
+                button.setForeground(Color.WHITE);
+                button.setBorder(BorderFactory.createEmptyBorder());
+                button.setFocusPainted(false);
+                button.setContentAreaFilled(false);
+                return button;
+            }
+            
+            @Override
+            protected ComboPopup createPopup() {
+                ComboPopup popup = super.createPopup();
+                
+                // Получаем доступ к списку через метод getList()
+                SwingUtilities.invokeLater(() -> {
+                    try {
+                        java.lang.reflect.Method getListMethod = popup.getClass().getMethod("getList");
+                        JList<?> list = (JList<?>) getListMethod.invoke(popup);
+                        
+                        if (list != null) {
+                            // Добавляем слушатели для выпадающего списка
+                            list.addMouseMotionListener(new MouseMotionAdapter() {
+                                @Override
+                                public void mouseMoved(MouseEvent e) {
+                                    int index = list.locationToIndex(e.getPoint());
+                                    if (index >= 0 && index != hoveredIndex[0]) {
+                                        hoveredIndex[0] = index;
+                                        list.repaint();
+                                    }
+                                }
+                            });
+                            
+                            list.addMouseListener(new MouseAdapter() {
+                                @Override
+                                public void mouseExited(MouseEvent e) {
+                                    hoveredIndex[0] = -1;
+                                    list.repaint();
+                                }
+                            });
+                        }
+                    } catch (Exception e) {
+                        // Игнорируем ошибки
+                    }
+                });
+                
+                return popup;
+            }
+        });
+
+        // Добавляем эффект прозрачности при наведении на сам ComboBox
+        combo.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseEntered(MouseEvent e) {
+                hoverAlpha[0] = 0.75f; // Становится чуть прозрачнее
+                combo.repaint();
+            }
+            
+            @Override
+            public void mouseExited(MouseEvent e) {
+                hoverAlpha[0] = 1.0f; // Возвращаем полную непрозрачность
+                combo.repaint();
+            }
+        });
     }
 
     private JButton createStyledButton(String text, Color color) {
-        JButton button = new JButton(text);
+        // Используем переданный цвет для фона кнопки
+        final Color buttonColor = color;
+        final float[] hoverAlpha = {1.0f}; // Текущая прозрачность (1.0 = непрозрачно)
+        
+        // Создаем кнопку с полностью кастомной отрисовкой
+        JButton button = new JButton("<html>" + text + "</html>") {
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2d = (Graphics2D) g.create();
+                g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                
+                // Устанавливаем прозрачность при наведении
+                g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, hoverAlpha[0]));
+                
+                // Рисуем фон кнопки - заполняем всю область
+                g2d.setColor(buttonColor);
+                g2d.fillRect(0, 0, getWidth(), getHeight());
+                
+                // Рисуем темную рамку
+                g2d.setColor(buttonColor.darker());
+                g2d.setStroke(new BasicStroke(1));
+                g2d.drawRect(0, 0, getWidth() - 1, getHeight() - 1);
+                
+                g2d.dispose();
+                
+                // Теперь рисуем текст поверх фона
+                Graphics textG = g.create();
+                textG.setColor(Color.WHITE);
+                // Вызываем стандартный метод отрисовки текста, но без фона
+                super.paintComponent(textG);
+                textG.dispose();
+            }
+        };
+        
         button.setFont(new Font("Segoe UI", Font.BOLD, 14));
-        button.setBackground(color);
         button.setForeground(Color.WHITE);
         button.setFocusPainted(false);
-        button.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(color.darker(), 2),
-                BorderFactory.createEmptyBorder(12, 20, 12, 20)
-        ));
+        button.setContentAreaFilled(false); // Отключаем стандартную заливку
+        button.setOpaque(false);
+        button.setBorder(BorderFactory.createEmptyBorder(12, 20, 12, 20));
         button.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-
+        
+        // Добавляем эффект прозрачности при наведении
         button.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseEntered(MouseEvent e) {
-                button.setBackground(color.brighter());
+                hoverAlpha[0] = 0.75f; // Становится чуть прозрачнее
+                button.repaint();
             }
 
             @Override
             public void mouseExited(MouseEvent e) {
-                button.setBackground(color);
+                hoverAlpha[0] = 1.0f; // Возвращаем полную непрозрачность
+                button.repaint();
             }
         });
 
@@ -224,20 +430,20 @@ public class LoginWindow extends JFrame {
         try {
             int port = Integer.parseInt(portText);
 
-            statusLabel.setText("🚀 Запуск сервера...");
-            statusLabel.setForeground(Color.YELLOW);
+                    statusLabel.setText("<html><nobr>🚀 Запуск сервера...</nobr></html>");
+                    statusLabel.setForeground(Color.YELLOW);
 
-            new Thread(() -> {
-                try {
-                    ru.kpfu.itis.server.ServerMain.main(new String[]{portText});
-                } catch (Exception e) {
-                    SwingUtilities.invokeLater(() -> {
-                        statusLabel.setText("❌ Ошибка запуска");
-                        statusLabel.setForeground(Color.RED);
-                        showError("Ошибка: " + e.getMessage());
-                    });
-                }
-            }).start();
+                    new Thread(() -> {
+                        try {
+                            ru.kpfu.itis.server.ServerMain.main(new String[]{portText});
+                        } catch (Exception e) {
+                            SwingUtilities.invokeLater(() -> {
+                                statusLabel.setText("<html><nobr>❌ Ошибка запуска</nobr></html>");
+                                statusLabel.setForeground(Color.RED);
+                                showError("Ошибка: " + e.getMessage());
+                            });
+                        }
+                    }).start();
 
         } catch (NumberFormatException e) {
             showError("Неверный формат порта");
@@ -269,7 +475,7 @@ public class LoginWindow extends JFrame {
         try {
             int port = Integer.parseInt(portText);
 
-            statusLabel.setText("🔗 Подключение...");
+            statusLabel.setText("<html><nobr>🔗 Подключение...</nobr></html>");
             statusLabel.setForeground(Color.YELLOW);
 
             new Thread(() -> {
@@ -277,7 +483,7 @@ public class LoginWindow extends JFrame {
                     testSocket.connect(new InetSocketAddress(host, port), 3000);
 
                     SwingUtilities.invokeLater(() -> {
-                        statusLabel.setText("✅ Подключено");
+                        statusLabel.setText("<html><nobr>✅ Подключено</nobr></html>");
                         statusLabel.setForeground(Color.GREEN);
 
                         dispose();
@@ -286,7 +492,7 @@ public class LoginWindow extends JFrame {
 
                 } catch (Exception e) {
                     SwingUtilities.invokeLater(() -> {
-                        statusLabel.setText("❌ Не удалось подключиться");
+                        statusLabel.setText("<html><nobr>❌ Не удалось подключиться</nobr></html>");
                         statusLabel.setForeground(Color.RED);
 
                         int choice = JOptionPane.showConfirmDialog(

@@ -59,6 +59,18 @@ public class GameClient extends JFrame {
                     "Ошибка",
                     JOptionPane.ERROR_MESSAGE);
             dispose();
+        } else {
+            // Получаем playerId после подключения
+            new Thread(() -> {
+                try {
+                    Thread.sleep(500); // Даем время на получение CONNECT сообщения
+                    SwingUtilities.invokeLater(() -> {
+                        playerId = networkClient.getPlayerId();
+                    });
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }).start();
         }
     }
 
@@ -91,15 +103,15 @@ public class GameClient extends JFrame {
         InputMap inputMap = gamePanel.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW);
         ActionMap actionMap = gamePanel.getActionMap();
 
-        String[] keys = {"W", "S", "A", "D", "UP", "DOWN", "LEFT", "RIGHT"};
-        Direction[] directions = {
-                Direction.UP, Direction.DOWN, Direction.LEFT, Direction.RIGHT,
+        // WASD клавиши
+        String[] wasdKeys = {"W", "S", "A", "D"};
+        Direction[] wasdDirections = {
                 Direction.UP, Direction.DOWN, Direction.LEFT, Direction.RIGHT
         };
 
-        for (int i = 0; i < keys.length; i++) {
-            final Direction dir = directions[i];
-            inputMap.put(KeyStroke.getKeyStroke(keys[i]), "move" + dir);
+        for (int i = 0; i < wasdKeys.length; i++) {
+            final Direction dir = wasdDirections[i];
+            inputMap.put(KeyStroke.getKeyStroke(wasdKeys[i]), "move" + dir);
             actionMap.put("move" + dir, new AbstractAction() {
                 @Override
                 public void actionPerformed(ActionEvent e) {
@@ -109,6 +121,45 @@ public class GameClient extends JFrame {
                 }
             });
         }
+
+        // Стрелки
+        inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_UP, 0), "moveUP");
+        inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_DOWN, 0), "moveDOWN");
+        inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_LEFT, 0), "moveLEFT");
+        inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_RIGHT, 0), "moveRIGHT");
+        
+        actionMap.put("moveUP", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (networkClient != null && networkClient.isConnected()) {
+                    networkClient.sendMove(Direction.UP);
+                }
+            }
+        });
+        actionMap.put("moveDOWN", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (networkClient != null && networkClient.isConnected()) {
+                    networkClient.sendMove(Direction.DOWN);
+                }
+            }
+        });
+        actionMap.put("moveLEFT", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (networkClient != null && networkClient.isConnected()) {
+                    networkClient.sendMove(Direction.LEFT);
+                }
+            }
+        });
+        actionMap.put("moveRIGHT", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (networkClient != null && networkClient.isConnected()) {
+                    networkClient.sendMove(Direction.RIGHT);
+                }
+            }
+        });
 
         inputMap.put(KeyStroke.getKeyStroke("SPACE"), "action");
         actionMap.put("action", new AbstractAction() {
@@ -157,7 +208,7 @@ public class GameClient extends JFrame {
             setBackground(new Color(40, 40, 50));
             setBorder(BorderFactory.createEmptyBorder(10, 20, 10, 20));
 
-            healthLabel = createInfoLabel("❤️ Здоровье: 100/100", new Color(255, 100, 100));
+            healthLabel = createInfoLabel("❤ Здоровье: 100/100", new Color(255, 100, 100));
             diamondsLabel = createInfoLabel("💎 Алмазы: 0", new Color(100, 200, 255));
             levelLabel = createInfoLabel("📊 Уровень: 1", Color.YELLOW);
             playersLabel = createInfoLabel("👥 Игроков: 1/3", new Color(100, 255, 100));
@@ -169,9 +220,10 @@ public class GameClient extends JFrame {
         }
 
         private JLabel createInfoLabel(String text, Color color) {
-            JLabel label = new JLabel(text);
+            // Используем HTML с nowrap для отображения в одну строку
+            JLabel label = new JLabel("<html><nobr>" + text + "</nobr></html>");
             label.setForeground(color);
-            label.setFont(new Font("Arial", Font.BOLD, 14));
+            label.setFont(new Font("Segoe UI", Font.BOLD, 14));
             return label;
         }
 
@@ -187,12 +239,12 @@ public class GameClient extends JFrame {
             }
 
             if (player != null) {
-                healthLabel.setText("❤️ Здоровье: " + player.health + "/" + player.maxHealth);
-                diamondsLabel.setText("💎 Алмазы: " + player.diamonds);
+                healthLabel.setText("<html><nobr>❤ Здоровье: " + player.health + "/" + player.maxHealth + "</nobr></html>");
+                diamondsLabel.setText("<html><nobr>💎 Алмазы: " + player.diamonds + "</nobr></html>");
             }
 
-            levelLabel.setText("📊 Уровень: " + state.currentLevel);
-            playersLabel.setText("👥 Игроков: " + state.players.size() + "/3");
+            levelLabel.setText("<html><nobr>📊 Уровень: " + state.currentLevel + "</nobr></html>");
+            playersLabel.setText("<html><nobr>👥 Игроков: " + state.players.size() + "/3</nobr></html>");
         }
     }
 
@@ -203,8 +255,18 @@ public class GameClient extends JFrame {
         public ChatPanel(java.util.function.Consumer<String> onSend) {
             setLayout(new BorderLayout());
             setPreferredSize(new Dimension(0, 150));
-            setBorder(BorderFactory.createTitledBorder("💬 Чат"));
-
+            setBackground(new Color(30, 30, 40));
+            
+            // Создаем заголовок с HTML для правильного отображения эмодзи без переноса
+            JLabel titleLabel = new JLabel("<html><nobr><b>💬 Чат</b></nobr></html>");
+            titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 12));
+            titleLabel.setForeground(Color.WHITE);
+            titleLabel.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
+            
+            JPanel headerPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+            headerPanel.setBackground(new Color(40, 40, 50));
+            headerPanel.add(titleLabel);
+            
             chatArea = new JTextArea();
             chatArea.setEditable(false);
             chatArea.setBackground(new Color(30, 30, 40));
@@ -213,6 +275,7 @@ public class GameClient extends JFrame {
 
             JScrollPane scrollPane = new JScrollPane(chatArea);
             scrollPane.setPreferredSize(new Dimension(0, 100));
+            scrollPane.setBorder(BorderFactory.createLineBorder(new Color(100, 100, 120)));
 
             inputField = new JTextField();
             inputField.addActionListener(e -> {
@@ -220,6 +283,7 @@ public class GameClient extends JFrame {
                 inputField.setText("");
             });
 
+            add(headerPanel, BorderLayout.NORTH);
             add(scrollPane, BorderLayout.CENTER);
             add(inputField, BorderLayout.SOUTH);
         }

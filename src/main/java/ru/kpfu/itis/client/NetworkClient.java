@@ -55,7 +55,6 @@ public class NetworkClient {
             while (connected && !socket.isClosed()) {
                 String message = in.readLine();
                 if (message == null) {
-                    System.out.println("📡 Сервер закрыл соединение");
                     break;
                 }
                 handleRawMessage(message);
@@ -72,7 +71,7 @@ public class NetworkClient {
 
     private void handleRawMessage(String rawMessage) {
         try {
-            System.out.println("📥 Получено: " + rawMessage);
+            // Убрали лишний вывод в консоль
             String[] parts = rawMessage.split("\\|", 4);
             if (parts.length < 2) return;
 
@@ -81,7 +80,6 @@ public class NetworkClient {
             if (messageType.equals("CONNECT")) {
                 // Формат: CONNECT|playerId|
                 playerId = Integer.parseInt(parts[1]);
-                System.out.println("🎮 Ваш ID: " + playerId);
                 return;
             }
 
@@ -149,7 +147,7 @@ public class NetworkClient {
         }
 
         try {
-            System.out.println("📤 Отправка: " + message);
+            // Убрали лишний вывод в консоль
             out.println(message);
             out.flush();
         } catch (Exception e) {
@@ -195,7 +193,5 @@ public class NetworkClient {
         } catch (IOException e) {
             // Игнорируем
         }
-
-        System.out.println("📡 Отключено от сервера");
     }
 }

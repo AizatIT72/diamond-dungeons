@@ -217,22 +217,7 @@ public class GamePanel extends JPanel {
     }
 
     private void drawUI(Graphics2D g2d) {
-        if (currentState == null) return;
-
-        g2d.setColor(Color.WHITE);
-        g2d.setFont(new Font("Arial", Font.BOLD, 14));
-
-        String stats = String.format(
-                "Уровень: %d | Алмазы: %d/%d | Игроков: %d/%d",
-                currentState.currentLevel,
-                currentState.collectedDiamonds,
-                currentState.totalDiamonds,
-                currentState.players.size(),
-                3
-        );
-
-        g2d.drawString(stats, 20, 30);
-
+        // Убрали второе поле с информацией - теперь вся информация в верхней панели PlayerInfoPanel
         if (currentPlayerId != -1) {
             g2d.setColor(new Color(255, 255, 255, 150));
             g2d.setFont(new Font("Arial", Font.PLAIN, 12));
