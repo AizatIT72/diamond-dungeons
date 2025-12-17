@@ -1,174 +1,232 @@
 package ru.kpfu.itis.client;
 
+import ru.kpfu.itis.common.*;
+import ru.kpfu.itis.server.GameWorld;
+
 import javax.swing.*;
 import java.awt.*;
+import java.awt.event.*;
 
 public class GameClient extends JFrame {
-    private LoginWindow loginWindow;
+    private NetworkClient networkClient;
+    private GamePanel gamePanel;
+    private ChatPanel chatPanel;
+    private PlayerInfoPanel infoPanel;
     private String username;
     private String characterType;
+    private int playerId = -1;
 
-    public GameClient() {
-        setTitle("Diamond Dungeons");
+    public GameClient(String host, int port, String username, String characterType) {
+        this.username = username;
+        this.characterType = characterType;
+
+        setTitle("Diamond Dungeons - " + username);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setSize(800, 600);
+        setSize(GameConstants.WINDOW_WIDTH, GameConstants.WINDOW_HEIGHT);
         setLocationRelativeTo(null);
+        setResizable(true);
 
-        showLoginWindow();
+        initUI();
+        connectToServer(host, port);
     }
 
-    private void showLoginWindow() {
-        loginWindow = new LoginWindow();
-        loginWindow.setVisible(true);
+    private void initUI() {
+        setLayout(new BorderLayout());
 
-        new Thread(() -> {
-            while (!loginWindow.isLoggedIn()) {
-                try {
-                    Thread.sleep(100);
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
-            }
+        infoPanel = new PlayerInfoPanel();
+        add(infoPanel, BorderLayout.NORTH);
 
-            SwingUtilities.invokeLater(() -> {
-                username = loginWindow.getUsername();
-                characterType = loginWindow.getCharacterType();
-                showMainWindow();
-            });
-        }).start();
+        gamePanel = new GamePanel();
+        add(gamePanel, BorderLayout.CENTER);
+
+        chatPanel = new ChatPanel(this::sendChatMessage);
+        add(chatPanel, BorderLayout.SOUTH);
+
+        setupKeyBindings();
     }
 
-    private void showMainWindow() {
-        getContentPane().removeAll();
+    private void connectToServer(String host, int port) {
+        networkClient = new NetworkClient();
 
-        JTabbedPane tabbedPane = new JTabbedPane();
+        networkClient.setOnGameStateUpdate(this::updateGameState);
+        networkClient.setOnMessageReceived(this::handleMessage);
 
-        JPanel profilePanel = createProfilePanel();
-        tabbedPane.addTab("Профиль", profilePanel);
+        boolean connected = networkClient.connect(host, port, username, characterType);
 
-        JPanel gamePanel = new JPanel();
-        gamePanel.add(new JLabel("Игровая панель - подключение к серверу..."));
-        tabbedPane.addTab("Игра", gamePanel);
-
-        JPanel statsPanel = new JPanel();
-        statsPanel.add(new JLabel("Статистика будет здесь"));
-        tabbedPane.addTab("Статистика", statsPanel);
-
-        add(tabbedPane);
-
-        revalidate();
-        repaint();
-        setVisible(true);
-    }
-
-    private JPanel createProfilePanel() {
-        JPanel panel = new JPanel(new BorderLayout(10, 10));
-        panel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
-
-        JPanel infoPanel = new JPanel(new GridLayout(4, 1, 5, 5));
-
-        JLabel titleLabel = new JLabel("Профиль игрока", SwingConstants.CENTER);
-        titleLabel.setFont(new Font("Arial", Font.BOLD, 20));
-
-        JLabel nameLabel = new JLabel("Имя: " + username);
-        nameLabel.setFont(new Font("Arial", Font.PLAIN, 16));
-
-        JLabel characterLabel = new JLabel("Персонаж: " + characterType);
-        characterLabel.setFont(new Font("Arial", Font.PLAIN, 16));
-
-        JLabel statusLabel = new JLabel("Статус: Не в сети");
-        statusLabel.setFont(new Font("Arial", Font.ITALIC, 14));
-        statusLabel.setForeground(Color.RED);
-
-        infoPanel.add(titleLabel);
-        infoPanel.add(nameLabel);
-        infoPanel.add(characterLabel);
-        infoPanel.add(statusLabel);
-
-        JPanel avatarPanel = new JPanel() {
-            @Override
-            protected void paintComponent(Graphics g) {
-                super.paintComponent(g);
-                drawAvatar(g);
-            }
-
-            private void drawAvatar(Graphics g) {
-                Graphics2D g2d = (Graphics2D) g;
-                g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
-                        RenderingHints.VALUE_ANTIALIAS_ON);
-
-                int centerX = getWidth() / 2;
-                int centerY = getHeight() / 2;
-                int size = Math.min(getWidth(), getHeight()) - 40;
-
-                Color playerColor;
-                switch (characterType) {
-                    case "Красный воин":
-                        playerColor = Color.RED;
-                        break;
-                    case "Синий маг":
-                        playerColor = Color.BLUE;
-                        break;
-                    case "Зеленый плут":
-                        playerColor = Color.GREEN;
-                        break;
-                    default:
-                        playerColor = Color.GRAY;
-                }
-
-                g2d.setColor(playerColor);
-                g2d.fillOval(centerX - size / 2, centerY - size / 2, size, size);
-
-                g2d.setColor(Color.BLACK);
-                g2d.setStroke(new BasicStroke(3));
-                g2d.drawOval(centerX - size / 2, centerY - size / 2, size, size);
-
-                g2d.setColor(Color.WHITE);
-                g2d.fillOval(centerX - size / 4, centerY - size / 6, size / 6, size / 6);
-                g2d.fillOval(centerX + size / 4 - size / 6, centerY - size / 6, size / 6, size / 6);
-
-                g2d.setColor(Color.BLACK);
-                g2d.fillOval(centerX - size / 8, centerY - size / 12, size / 12, size / 12);
-                g2d.fillOval(centerX + size / 8 - size / 12, centerY - size / 12, size / 12, size / 12);
-
-                g2d.setStroke(new BasicStroke(2));
-                g2d.drawArc(centerX - size / 4, centerY, size / 2, size / 3, 0, -180);
-
-                g2d.setFont(new Font("Arial", Font.BOLD, 14));
-                FontMetrics fm = g2d.getFontMetrics();
-                int textWidth = fm.stringWidth(username);
-                g2d.drawString(username, centerX - textWidth / 2, centerY + size / 2 + 20);
-            }
-        };
-        avatarPanel.setPreferredSize(new Dimension(200, 250));
-        avatarPanel.setBorder(BorderFactory.createLineBorder(Color.GRAY, 2));
-
-        // Нижняя часть - кнопки
-        JPanel buttonPanel = new JPanel(new FlowLayout());
-        JButton connectButton = new JButton("Подключиться к серверу");
-        JButton settingsButton = new JButton("Настройки");
-
-        connectButton.addActionListener(e -> {
+        if (!connected) {
             JOptionPane.showMessageDialog(this,
-                    "Подключение к серверу...\n(реализуем позже)",
-                    "Информация",
-                    JOptionPane.INFORMATION_MESSAGE);
-        });
-
-        buttonPanel.add(connectButton);
-        buttonPanel.add(settingsButton);
-
-        panel.add(infoPanel, BorderLayout.NORTH);
-        panel.add(avatarPanel, BorderLayout.CENTER);
-        panel.add(buttonPanel, BorderLayout.SOUTH);
-
-        return panel;
+                    "Не удалось подключиться к " + host + ":" + port,
+                    "Ошибка",
+                    JOptionPane.ERROR_MESSAGE);
+            dispose();
+        }
     }
 
-    public static void main(String[] args) {
+    private void updateGameState(GameWorld.GameState state) {
         SwingUtilities.invokeLater(() -> {
-            GameClient client = new GameClient();
-            client.setVisible(true);
+            gamePanel.updateGameState(state, playerId);
+            infoPanel.updateInfo(state, playerId);
         });
+    }
+
+    private void handleMessage(Message message) {
+        SwingUtilities.invokeLater(() -> {
+            switch (message.getType()) {
+                case Message.CHAT:
+                    String sender = message.getPlayerId() == 0 ? "Сервер" :
+                            message.getPlayerId() == playerId ? "Вы" :
+                                    "Игрок " + message.getPlayerId();
+                    chatPanel.addMessage(sender + ": " + message.getData());
+                    break;
+
+                case Message.ACTION:
+                case Message.LEVEL_UPDATE:
+                    chatPanel.addMessage("⚡ " + message.getData());
+                    break;
+            }
+        });
+    }
+
+    private void setupKeyBindings() {
+        InputMap inputMap = gamePanel.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW);
+        ActionMap actionMap = gamePanel.getActionMap();
+
+        String[] keys = {"W", "S", "A", "D", "UP", "DOWN", "LEFT", "RIGHT"};
+        Direction[] directions = {
+                Direction.UP, Direction.DOWN, Direction.LEFT, Direction.RIGHT,
+                Direction.UP, Direction.DOWN, Direction.LEFT, Direction.RIGHT
+        };
+
+        for (int i = 0; i < keys.length; i++) {
+            final Direction dir = directions[i];
+            inputMap.put(KeyStroke.getKeyStroke(keys[i]), "move" + dir);
+            actionMap.put("move" + dir, new AbstractAction() {
+                @Override
+                public void actionPerformed(ActionEvent e) {
+                    if (networkClient != null && networkClient.isConnected()) {
+                        networkClient.sendMove(dir);
+                    }
+                }
+            });
+        }
+
+        inputMap.put(KeyStroke.getKeyStroke("SPACE"), "action");
+        actionMap.put("action", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (networkClient != null) {
+                    networkClient.sendAction("Использовать");
+                }
+            }
+        });
+
+        inputMap.put(KeyStroke.getKeyStroke("ENTER"), "chat");
+        actionMap.put("chat", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                chatPanel.inputField.requestFocusInWindow();
+            }
+        });
+
+        gamePanel.requestFocusInWindow();
+    }
+
+    private void sendChatMessage(String text) {
+        if (networkClient != null && !text.trim().isEmpty()) {
+            networkClient.sendChat(text);
+            chatPanel.addMessage("Вы: " + text);
+        }
+    }
+
+    @Override
+    public void dispose() {
+        if (networkClient != null) {
+            networkClient.disconnect();
+        }
+        super.dispose();
+    }
+
+    class PlayerInfoPanel extends JPanel {
+        private JLabel healthLabel;
+        private JLabel diamondsLabel;
+        private JLabel levelLabel;
+        private JLabel playersLabel;
+
+        public PlayerInfoPanel() {
+            setLayout(new FlowLayout(FlowLayout.LEFT, 20, 5));
+            setBackground(new Color(40, 40, 50));
+            setBorder(BorderFactory.createEmptyBorder(10, 20, 10, 20));
+
+            healthLabel = createInfoLabel("❤️ Здоровье: 100/100", new Color(255, 100, 100));
+            diamondsLabel = createInfoLabel("💎 Алмазы: 0", new Color(100, 200, 255));
+            levelLabel = createInfoLabel("📊 Уровень: 1", Color.YELLOW);
+            playersLabel = createInfoLabel("👥 Игроков: 1/3", new Color(100, 255, 100));
+
+            add(healthLabel);
+            add(diamondsLabel);
+            add(levelLabel);
+            add(playersLabel);
+        }
+
+        private JLabel createInfoLabel(String text, Color color) {
+            JLabel label = new JLabel(text);
+            label.setForeground(color);
+            label.setFont(new Font("Arial", Font.BOLD, 14));
+            return label;
+        }
+
+        public void updateInfo(GameWorld.GameState state, int currentPlayerId) {
+            if (state == null) return;
+
+            PlayerState player = null;
+            for (PlayerState p : state.players) {
+                if (p.id == currentPlayerId) {
+                    player = p;
+                    break;
+                }
+            }
+
+            if (player != null) {
+                healthLabel.setText("❤️ Здоровье: " + player.health + "/" + player.maxHealth);
+                diamondsLabel.setText("💎 Алмазы: " + player.diamonds);
+            }
+
+            levelLabel.setText("📊 Уровень: " + state.currentLevel);
+            playersLabel.setText("👥 Игроков: " + state.players.size() + "/3");
+        }
+    }
+
+    class ChatPanel extends JPanel {
+        private JTextArea chatArea;
+        private JTextField inputField;
+
+        public ChatPanel(java.util.function.Consumer<String> onSend) {
+            setLayout(new BorderLayout());
+            setPreferredSize(new Dimension(0, 150));
+            setBorder(BorderFactory.createTitledBorder("💬 Чат"));
+
+            chatArea = new JTextArea();
+            chatArea.setEditable(false);
+            chatArea.setBackground(new Color(30, 30, 40));
+            chatArea.setForeground(Color.WHITE);
+            chatArea.setFont(new Font("Monospaced", Font.PLAIN, 12));
+
+            JScrollPane scrollPane = new JScrollPane(chatArea);
+            scrollPane.setPreferredSize(new Dimension(0, 100));
+
+            inputField = new JTextField();
+            inputField.addActionListener(e -> {
+                onSend.accept(inputField.getText());
+                inputField.setText("");
+            });
+
+            add(scrollPane, BorderLayout.CENTER);
+            add(inputField, BorderLayout.SOUTH);
+        }
+
+        public void addMessage(String message) {
+            chatArea.append(message + "\n");
+            chatArea.setCaretPosition(chatArea.getDocument().getLength());
+        }
     }
 }

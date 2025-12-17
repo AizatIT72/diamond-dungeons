@@ -1,6 +1,8 @@
 package ru.kpfu.itis.common;
 
-public enum Direction {
+import java.io.Serializable;
+
+public enum Direction implements Serializable {
     UP(0, -1),
     DOWN(0, 1),
     LEFT(-1, 0),
@@ -12,5 +14,13 @@ public enum Direction {
     Direction(int dx, int dy) {
         this.dx = dx;
         this.dy = dy;
+    }
+
+    public static Direction fromString(String s) {
+        try {
+            return Direction.valueOf(s.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            return UP;
+        }
     }
 }
