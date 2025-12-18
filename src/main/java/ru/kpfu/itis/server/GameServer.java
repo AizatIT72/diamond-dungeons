@@ -4,6 +4,8 @@ import ru.kpfu.itis.common.*;
 import ru.kpfu.itis.protocol.GameMessage;
 import ru.kpfu.itis.protocol.GameProtocol;
 import ru.kpfu.itis.protocol.ProtocolException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.net.*;
@@ -11,6 +13,7 @@ import java.util.*;
 import java.util.concurrent.*;
 
 public class GameServer {
+    private static final Logger logger = LoggerFactory.getLogger(GameServer.class);
     private ServerSocket serverSocket;
     private final GameWorld gameWorld;
     private final Map<Integer, ClientHandler> clients = new ConcurrentHashMap<>();
@@ -25,45 +28,39 @@ public class GameServer {
         this.port = port;
         serverSocket = new ServerSocket(port);
         serverSocket.setReuseAddress(true);
-        serverSocket.setSoTimeout(1000); // Таймаут на accept для graceful shutdown
+        serverSocket.setSoTimeout(1000);
 
         gameWorld = new GameWorld();
         gameWorld.setBroadcastCallback(this::broadcast);
-
-        System.out.println("🎮 Игровой мир инициализирован");
+        logger.info("Игровой мир инициализирован");
     }
 
     public void start() {
         running = true;
 
-        // Запускаем обслуживание
         startMaintenance();
 
-        // Игровой цикл
         gameLoop.scheduleAtFixedRate(() -> {
             try {
                 gameTick();
             } catch (Exception e) {
-                System.err.println("⚠️  Ошибка игрового цикла: " + e.getMessage());
+                logger.error("Ошибка игрового цикла", e);
             }
         }, 0, 100, TimeUnit.MILLISECONDS);
 
-        // Прием подключений
         threadPool.execute(() -> {
-            System.out.println("👂 Сервер запущен на порту " + port);
-            System.out.println("👂 Ожидаем подключения игроков...");
+            logger.info("Сервер запущен на порту {}", port);
+            logger.info("Ожидаем подключения игроков...");
 
             while (running) {
                 try {
                     Socket clientSocket = serverSocket.accept();
                     clientSocket.setTcpNoDelay(true);
-                    clientSocket.setSoTimeout(45000); // Таймаут 45 секунд на операции
+                    clientSocket.setSoTimeout(45000);
 
-                    // Ограничение на 3 игрока
                     if (clients.size() >= 3) {
-                        System.out.println("⚠️  Достигнут лимит игроков (3). Отклоняем подключение.");
+                        logger.warn("Достигнут лимит игроков (3). Отклоняем подключение.");
                         try {
-                            // Отправляем сообщение об ошибке
                             OutputStream out = clientSocket.getOutputStream();
                             GameMessage errorMsg = GameProtocol.createErrorMessage(
                                     GameProtocol.ERROR_SERVER_FULL,
@@ -72,7 +69,7 @@ public class GameServer {
                             GameProtocol.writeMessage(out, errorMsg);
                             out.flush();
                         } catch (Exception e) {
-                            // Игнорируем
+                            logger.error("Ошибка при отправке сообщения об ошибке клиенту", e);
                         }
                         clientSocket.close();
                         continue;
@@ -83,22 +80,18 @@ public class GameServer {
                     clients.put(playerId, handler);
                     threadPool.execute(handler);
 
-                    System.out.println("🎮 Игрок #" + playerId + " подключился (всего: " + clients.size() + "/3)");
-
-                    // Отправляем обновленный список игроков всем
+                    logger.info("Игрок #{} подключился (всего: {}/3)", playerId, clients.size());
                     broadcastPlayerList();
 
                 } catch (SocketTimeoutException e) {
-                    // Таймаут на accept - это нормально, продолжаем цикл
                     continue;
                 } catch (IOException e) {
                     if (running) {
-                        System.err.println("⚠️  Ошибка приема подключения: " + e.getMessage());
+                        logger.error("Ошибка приема подключения", e);
                     }
                 }
             }
-
-            System.out.println("🛑 Сервер прекратил прием подключений");
+            logger.info("Сервер прекратил прием подключений");
         });
     }
 
@@ -106,39 +99,36 @@ public class GameServer {
         maintenanceExecutor = Executors.newSingleThreadScheduledExecutor();
         maintenanceExecutor.scheduleAtFixedRate(() -> {
             try {
-                // Проверяем "мертвые" соединения
                 List<Integer> deadClients = new ArrayList<>();
                 long currentTime = System.currentTimeMillis();
 
                 for (ClientHandler client : clients.values()) {
-                    if (currentTime - client.getLastActivityTime() > 60000) { // 60 секунд без активности
-                        System.err.println("⚠️  Клиент #" + client.playerId + " неактивен более 60 секунд");
+                    if (currentTime - client.getLastActivityTime() > 60000) {
+                        logger.warn("Клиент #{} неактивен более 60 секунд", client.playerId);
                         deadClients.add(client.playerId);
                     }
                 }
 
-                // Удаляем мертвых клиентов
                 for (Integer playerId : deadClients) {
-                    System.err.println("🗑️  Удаляем неактивного клиента #" + playerId);
+                    logger.info("Удаляем неактивного клиента #{}", playerId);
                     removeClient(playerId);
                 }
 
-                // Отправляем heartbeat всем клиентам каждые 20 секунд
                 if (!clients.isEmpty()) {
                     GameMessage heartbeat = GameProtocol.createHeartbeatMessage();
                     for (ClientHandler client : clients.values()) {
                         try {
                             client.sendProtocolMessage(heartbeat);
                         } catch (Exception e) {
-                            // Игнорируем
+                            logger.debug("Ошибка отправки heartbeat клиенту #{}", client.playerId, e);
                         }
                     }
                 }
 
             } catch (Exception e) {
-                System.err.println("⚠️  Ошибка в maintenance: " + e.getMessage());
+                logger.error("Ошибка в maintenance", e);
             }
-        }, 20000, 20000, TimeUnit.MILLISECONDS); // Каждые 20 секунд
+        }, 20000, 20000, TimeUnit.MILLISECONDS);
     }
 
     private void broadcastPlayerList() {
@@ -161,7 +151,7 @@ public class GameServer {
                 client.sendProtocolMessage(playerListMsg);
             }
         } catch (Exception e) {
-            System.err.println("⚠️  Ошибка отправки списка игроков: " + e.getMessage());
+            logger.error("Ошибка отправки списка игроков", e);
         }
     }
 
@@ -170,7 +160,6 @@ public class GameServer {
             gameWorld.updateEnemies();
             GameWorld.GameState state = gameWorld.getGameState();
 
-            // Отправляем состояние игры только если есть изменения или прошло время
             broadcastGameState(state);
 
             if (state.levelComplete) {
@@ -184,7 +173,7 @@ public class GameServer {
                 broadcast(new Message(Message.ACTION, 0, "Загружен уровень " + (state.currentLevel + 1)));
             }
         } catch (Exception e) {
-            System.err.println("⚠️  Ошибка в игровом цикле: " + e.getMessage());
+            logger.error("Ошибка в игровом цикле", e);
         }
     }
 
@@ -214,7 +203,7 @@ public class GameServer {
             disconnectMsg += " отключился";
 
             broadcast(new Message(Message.ACTION, 0, disconnectMsg));
-            System.out.println("👋 " + disconnectMsg + " (осталось: " + clients.size() + "/3)");
+            logger.info("{} (осталось: {}/3)", disconnectMsg, clients.size());
             broadcastPlayerList();
         }
     }
@@ -239,26 +228,23 @@ public class GameServer {
                     return;
             }
 
-            // Отправляем всем клиентам
             List<Integer> disconnectedClients = new ArrayList<>();
 
             for (ClientHandler client : clients.values()) {
                 try {
                     client.sendProtocolMessage(protocolMsg);
                 } catch (Exception e) {
-                    System.err.println("⚠️  Не удалось отправить сообщение игроку #" +
-                            client.playerId + ": " + e.getMessage());
+                    logger.warn("Не удалось отправить сообщение игроку #{}", client.playerId, e);
                     disconnectedClients.add(client.playerId);
                 }
             }
 
-            // Удаляем отключившихся клиентов
             for (Integer playerId : disconnectedClients) {
                 removeClient(playerId);
             }
 
         } catch (Exception e) {
-            System.err.println("⚠️  Ошибка broadcast: " + e.getMessage());
+            logger.error("Ошибка broadcast", e);
         }
     }
 
@@ -268,60 +254,51 @@ public class GameServer {
         try {
             GameMessage gameStateMsg = GameProtocol.createGameStateMessage(state);
 
-            // Отправляем состояние игры всем подключенным клиентам
             List<Integer> disconnectedClients = new ArrayList<>();
 
             for (ClientHandler client : clients.values()) {
                 try {
                     client.sendProtocolMessage(gameStateMsg);
                 } catch (Exception e) {
-                    System.err.println("⚠️  Не удалось отправить GameState игроку #" +
-                            client.playerId + ": " + e.getMessage());
+                    logger.warn("Не удалось отправить GameState игроку #{}", client.playerId, e);
                     disconnectedClients.add(client.playerId);
                 }
             }
 
-            // Удаляем отключившихся клиентов
             for (Integer playerId : disconnectedClients) {
                 removeClient(playerId);
             }
 
         } catch (IOException e) {
-            System.err.println("⚠️  Ошибка сериализации GameState: " + e.getMessage());
+            logger.error("Ошибка сериализации GameState", e);
         }
     }
 
     public void stop() {
-        System.out.println("🛑 Останавливаем сервер...");
+        logger.info("Останавливаем сервер...");
         running = false;
 
-        // Останавливаем обслуживание
         if (maintenanceExecutor != null) {
             maintenanceExecutor.shutdownNow();
         }
 
-        // Останавливаем игровой цикл
         gameLoop.shutdownNow();
 
-        // Закрываем все клиентские соединения
         List<Integer> clientIds = new ArrayList<>(clients.keySet());
         for (Integer playerId : clientIds) {
             removeClient(playerId);
         }
 
-        // Закрываем серверный сокет
         try {
             if (serverSocket != null && !serverSocket.isClosed()) {
                 serverSocket.close();
             }
         } catch (IOException e) {
-            // Игнорируем
+            logger.debug("Ошибка при закрытии серверного сокета", e);
         }
 
-        // Останавливаем пул потоков
         threadPool.shutdown();
-
-        System.out.println("🛑 Сервер остановлен");
+        logger.info("Сервер остановлен");
     }
 
     public int getPlayerCount() {
@@ -354,26 +331,23 @@ public class GameServer {
 
         @Override
         public void run() {
-            System.out.println("👤 Начинаем обработку клиента #" + playerId);
-
+            logger.info("Начинаем обработку клиента #{}", playerId);
             try {
                 out = socket.getOutputStream();
                 in = socket.getInputStream();
 
-                // Отправляем подтверждение подключения с playerId
                 GameMessage connectMsg = new GameMessage(
                         GameProtocol.TYPE_CONNECT,
                         String.valueOf(playerId).getBytes()
                 );
                 sendProtocolMessage(connectMsg);
-                System.out.println("📤 Отправлен ID игроку #" + playerId);
+                logger.debug("Отправлен ID игроку #{}", playerId);
 
-                // Чтение сообщений от клиента
                 while (connected && !socket.isClosed()) {
                     try {
                         GameMessage message = GameProtocol.readMessage(in);
                         if (message == null) {
-                            System.out.println("📭 Клиент #" + playerId + " отключился (конец потока)");
+                            logger.info("Клиент #{} отключился (конец потока)", playerId);
                             break;
                         }
 
@@ -381,9 +355,7 @@ public class GameServer {
                         handleProtocolMessage(message);
 
                     } catch (ProtocolException e) {
-                        System.err.println("Протокольная ошибка от #" + playerId + ": " + e.getMessage());
-
-                        // Пробуем восстановить синхронизацию
+                        logger.warn("Протокольная ошибка от #{}: {}", playerId, e.getMessage());
                         if (e.getMessage().contains("Неверный заголовок")) {
                             try {
                                 if (in.available() > 0) {
@@ -391,11 +363,10 @@ public class GameServer {
                                     continue;
                                 }
                             } catch (IOException ex) {
-                                // Игнорируем
+                                logger.debug("Ошибка при пропуске байта", ex);
                             }
                         }
 
-                        // Отправляем сообщение об ошибке клиенту
                         try {
                             GameMessage errorMsg = GameProtocol.createErrorMessage(
                                     GameProtocol.ERROR_INVALID_MESSAGE,
@@ -403,29 +374,28 @@ public class GameServer {
                             );
                             sendProtocolMessage(errorMsg);
                         } catch (Exception ex) {
-                            // Игнорируем
+                            logger.debug("Ошибка при отправке сообщения об ошибке", ex);
                         }
 
                         break;
                     } catch (SocketTimeoutException e) {
-                        // Таймаут - продолжаем ждать
-                        System.out.println("⏱️  Таймаут при чтении от клиента #" + playerId + ", продолжаем...");
+                        logger.debug("Таймаут при чтении от клиента #{}", playerId);
                         continue;
                     } catch (EOFException e) {
-                        System.out.println("📭 Клиент #" + playerId + " отключился (EOF)");
+                        logger.info("Клиент #{} отключился (EOF)", playerId);
                         break;
                     } catch (IOException e) {
                         if (e.getMessage() != null && (e.getMessage().contains("closed") ||
                                 e.getMessage().contains("reset") || e.getMessage().contains("abort"))) {
-                            System.err.println("❌ Соединение с клиентом #" + playerId + " разорвано");
+                            logger.warn("Соединение с клиентом #{} разорвано", playerId);
                             break;
                         }
-                        System.err.println("Ошибка чтения от клиента " + playerId + ": " + e.getMessage());
+                        logger.error("Ошибка чтения от клиента #{}", playerId, e);
                         break;
                     }
                 }
             } catch (IOException e) {
-                System.err.println("Ошибка подключения клиента " + playerId + ": " + e.getMessage());
+                logger.error("Ошибка подключения клиента #{}", playerId, e);
             } finally {
                 disconnect();
             }
@@ -441,9 +411,8 @@ public class GameServer {
                         if (connectData.length >= 2) {
                             String username = connectData[0];
                             String characterType = connectData[1];
-                            this.playerName = username;  // Обновляем имя
-                            System.out.println("Регистрируем игрока #" + playerId + ": " +
-                                    username + " (" + characterType + ")");
+                            this.playerName = username;
+                            logger.info("Регистрируем игрока #{}: {} ({})", playerId, username, characterType);
                             registerPlayer(playerId, username, characterType);
                         }
                         break;
@@ -453,9 +422,6 @@ public class GameServer {
                         if (moveData.playerId == playerId) {
                             Direction dir = GameProtocol.byteToDirection(moveData.direction);
                             handlePlayerMove(playerId, dir);
-                        } else {
-                            System.err.println("Несоответствие playerId в MOVE от #" + playerId +
-                                    ": ожидалось " + playerId + ", получено " + moveData.playerId);
                         }
                         break;
 
@@ -469,32 +435,30 @@ public class GameServer {
                     case GameProtocol.TYPE_CHAT:
                         GameProtocol.MessageData chatData = GameProtocol.parseTextMessage(message);
                         if (chatData.playerId == playerId) {
-                            // Рассылаем сообщение всем
                             broadcast(new Message(Message.CHAT, playerId, chatData.text));
                         }
                         break;
 
                     case GameProtocol.TYPE_DISCONNECT:
-                        System.out.println("👋 Игрок #" + playerId + " запросил отключение");
+                        logger.info("Игрок #{} запросил отключение", playerId);
                         disconnect();
                         break;
 
                     case GameProtocol.TYPE_HEARTBEAT:
-                        // Просто обновляем время активности
-                        System.out.println("❤️  Получен heartbeat от игрока #" + playerId);
+                        logger.debug("Получен heartbeat от игрока #{}", playerId);
                         break;
 
                     default:
-                        System.err.println("Неизвестный тип сообщения от #" + playerId + ": " + type);
+                        logger.warn("Неизвестный тип сообщения от #{}: {}", playerId, type);
                 }
             } catch (Exception e) {
-                System.err.println("Ошибка обработки протокольного сообщения от #" + playerId + ": " + e.getMessage());
+                logger.error("Ошибка обработки протокольного сообщения от #{}", playerId, e);
             }
         }
 
         public void sendProtocolMessage(GameMessage message) {
             if (!connected || out == null) {
-                System.err.println("Не могу отправить - клиент #" + playerId + " отключен");
+                logger.warn("Не могу отправить - клиент #{} отключен", playerId);
                 return;
             }
 
@@ -503,7 +467,7 @@ public class GameServer {
                     GameProtocol.writeMessage(out, message);
                 }
             } catch (Exception e) {
-                System.err.println("Ошибка отправки игроку #" + playerId + ": " + e.getMessage());
+                logger.error("Ошибка отправки игроку #{}", playerId, e);
                 disconnect();
             }
         }
@@ -518,13 +482,11 @@ public class GameServer {
                     socket.close();
                 }
             } catch (IOException e) {
-                // Игнорируем
+                logger.debug("Ошибка при закрытии сокета клиента #{}", playerId, e);
             }
 
-            // Удаляем из списка клиентов сервера
             GameServer.this.removeClient(playerId);
-
-            System.out.println("📤 Соединение с игроком #" + playerId + " (" + playerName + ") закрыто");
+            logger.info("Соединение с игроком #{} ({}) закрыто", playerId, playerName);
         }
     }
 }

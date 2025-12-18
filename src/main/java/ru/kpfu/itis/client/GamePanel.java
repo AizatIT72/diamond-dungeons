@@ -62,7 +62,7 @@ public class GamePanel extends JPanel {
             for (int x = 0; x < currentState.map[y].length; x++) {
                 TileType tile = currentState.map[y][x];
                 if (tile == null) {
-                    // Если tile null, рисуем пол
+
                     g2d.setColor(new Color(60, 60, 60));
                     g2d.fillRect(offsetX + x * cellSize, offsetY + y * cellSize, cellSize, cellSize);
                 } else {
@@ -161,16 +161,15 @@ public class GamePanel extends JPanel {
         int nameWidth = fm.stringWidth(name);
         g2d.drawString(name, x + (size - nameWidth)/2, y - 5);
 
-        // Отображаем количество жизней вместо HP
         if (player.lives > 0) {
             g2d.setFont(new Font("Arial", Font.BOLD, Math.max(8, size/5)));
             FontMetrics livesFm = g2d.getFontMetrics();
             String livesText = "❤" + player.lives;
             int livesWidth = livesFm.stringWidth(livesText);
-            // Рисуем черный фон для читаемости
+
             g2d.setColor(new Color(0, 0, 0, 150));
             g2d.fillRect(x + (size - livesWidth)/2 - 2, y + size + 2, livesWidth + 4, size/5 + 2);
-            // Рисуем текст жизней
+
             g2d.setColor(player.lives == 1 ? Color.RED : player.lives == 2 ? Color.YELLOW : Color.GREEN);
             g2d.drawString(livesText, x + (size - livesWidth)/2, y + size + size/5 + 2);
         }
@@ -238,21 +237,17 @@ public class GamePanel extends JPanel {
             int x = offsetX + patrolEnemy.x * cellSize;
             int y = offsetY + patrolEnemy.y * cellSize;
 
-            // Пульсирующая анимация для видимости
             double pulse = Math.sin(System.currentTimeMillis() * 0.005) * 0.1 + 0.9;
             int size = (int) (cellSize * pulse);
             int offset = (cellSize - size) / 2;
 
-            // Красный цвет - опасность!
             g2d.setColor(Color.RED);
             g2d.fillOval(x + offset, y + offset, size, size);
 
-            // Черная обводка для контраста
             g2d.setColor(Color.BLACK);
             g2d.setStroke(new BasicStroke(2));
             g2d.drawOval(x + offset, y + offset, size, size);
 
-            // Стрелка направления движения для читаемости
             int centerX = x + cellSize / 2;
             int centerY = y + cellSize / 2;
             g2d.setColor(Color.YELLOW);
@@ -260,24 +255,24 @@ public class GamePanel extends JPanel {
 
             if (patrolEnemy.axis == PatrolAxis.HORIZONTAL) {
                 if (patrolEnemy.direction == PatrolDirection.POSITIVE) {
-                    // Стрелка вправо
+
                     g2d.drawLine(centerX, centerY, centerX + size / 4, centerY);
                     g2d.drawLine(centerX + size / 4, centerY, centerX + size / 6, centerY - size / 8);
                     g2d.drawLine(centerX + size / 4, centerY, centerX + size / 6, centerY + size / 8);
                 } else {
-                    // Стрелка влево
+
                     g2d.drawLine(centerX, centerY, centerX - size / 4, centerY);
                     g2d.drawLine(centerX - size / 4, centerY, centerX - size / 6, centerY - size / 8);
                     g2d.drawLine(centerX - size / 4, centerY, centerX - size / 6, centerY + size / 8);
                 }
             } else {
                 if (patrolEnemy.direction == PatrolDirection.POSITIVE) {
-                    // Стрелка вниз
+
                     g2d.drawLine(centerX, centerY, centerX, centerY + size / 4);
                     g2d.drawLine(centerX, centerY + size / 4, centerX - size / 8, centerY + size / 6);
                     g2d.drawLine(centerX, centerY + size / 4, centerX + size / 8, centerY + size / 6);
                 } else {
-                    // Стрелка вверх
+
                     g2d.drawLine(centerX, centerY, centerX, centerY - size / 4);
                     g2d.drawLine(centerX, centerY - size / 4, centerX - size / 8, centerY - size / 6);
                     g2d.drawLine(centerX, centerY - size / 4, centerX + size / 8, centerY - size / 6);
@@ -299,10 +294,8 @@ public class GamePanel extends JPanel {
             int trapX = offsetX + trap.x * cellSize;
             int trapY = offsetY + trap.y * cellSize;
 
-            // Рисуем саму ловушку (в стене или сбоку)
             drawTrap(g2d, trap, trapX, trapY, cellSize);
 
-            // Если ловушка активна - рисуем зону поражения
             if (trap.active) {
                 drawTrapZone(g2d, trap, offsetX, offsetY, cellSize);
             }
@@ -310,45 +303,42 @@ public class GamePanel extends JPanel {
     }
 
     private void drawTrap(Graphics2D g2d, Trap trap, int x, int y, int cellSize) {
-        // Определяем позицию ловушки в зависимости от направления
+
         int trapDrawX = x;
         int trapDrawY = y;
         int trapWidth = cellSize / 4;
         int trapHeight = cellSize / 4;
 
-        // Позиционируем ловушку в стене в зависимости от направления
         switch (trap.direction) {
             case LEFT:
-                // Ловушка справа в стене
+
                 trapDrawX = x + cellSize - trapWidth - 2;
                 trapDrawY = y + (cellSize - trapHeight) / 2;
                 break;
             case RIGHT:
-                // Ловушка слева в стене
+
                 trapDrawX = x + 2;
                 trapDrawY = y + (cellSize - trapHeight) / 2;
                 break;
             case UP:
-                // Ловушка снизу в стене
+
                 trapDrawX = x + (cellSize - trapWidth) / 2;
                 trapDrawY = y + cellSize - trapHeight - 2;
                 break;
             case DOWN:
-                // Ловушка сверху в стене
+
                 trapDrawX = x + (cellSize - trapWidth) / 2;
                 trapDrawY = y + 2;
                 break;
         }
 
-        // Рисуем корпус ловушки
         if (trap.attack == TrapAttack.ARROW) {
-            // Стрела - темно-серый прямоугольник
+
             g2d.setColor(new Color(80, 80, 80));
             g2d.fillRect(trapDrawX, trapDrawY, trapWidth, trapHeight);
             g2d.setColor(Color.BLACK);
             g2d.drawRect(trapDrawX, trapDrawY, trapWidth, trapHeight);
 
-            // Направление стрелы
             if (trap.active) {
                 g2d.setColor(Color.RED);
                 int centerX = trapDrawX + trapWidth / 2;
@@ -356,11 +346,11 @@ public class GamePanel extends JPanel {
                 g2d.fillOval(centerX - 3, centerY - 3, 6, 6);
             }
         } else if (trap.attack == TrapAttack.FIRE) {
-            // Пламя - оранжевый/красный овал
+
             if (trap.active) {
                 g2d.setColor(new Color(255, 100, 0));
             } else {
-                // Мигание для таймерных ловушек
+
                 double pulse = Math.sin(System.currentTimeMillis() * 0.01) * 0.3 + 0.7;
                 int alpha = (int) (255 * pulse);
                 g2d.setColor(new Color(255, 150, 0, alpha));
@@ -372,7 +362,7 @@ public class GamePanel extends JPanel {
     }
 
     private void drawTrapZone(Graphics2D g2d, Trap trap, int offsetX, int offsetY, int cellSize) {
-        // Вычисляем зону поражения
+
         java.util.List<int[]> targetCells = new java.util.ArrayList<>();
         for (int i = 1; i <= trap.range; i++) {
             int targetX = trap.x;
@@ -399,22 +389,19 @@ public class GamePanel extends JPanel {
             }
         }
 
-        // Рисуем зону поражения
         Color zoneColor = trap.attack == TrapAttack.ARROW 
-                ? new Color(255, 100, 100, 180)  // Красноватый для стрелы
-                : new Color(255, 150, 0, 200);   // Оранжевый для пламени
+                ? new Color(255, 100, 100, 180)  
+                : new Color(255, 150, 0, 200);   
 
         for (int[] cell : targetCells) {
             int cellX = offsetX + cell[0] * cellSize;
             int cellY = offsetY + cell[1] * cellSize;
 
-            // Рисуем подсветку клетки
             g2d.setColor(zoneColor);
             g2d.fillRect(cellX, cellY, cellSize, cellSize);
 
-            // Рисуем эффект выстрела
             if (trap.attack == TrapAttack.ARROW) {
-                // Стрела - красный крест
+
                 g2d.setColor(Color.RED);
                 g2d.setStroke(new BasicStroke(3));
                 g2d.drawLine(cellX + cellSize/4, cellY + cellSize/2,
@@ -422,7 +409,7 @@ public class GamePanel extends JPanel {
                 g2d.drawLine(cellX + cellSize/2, cellY + cellSize/4,
                             cellX + cellSize/2, cellY + 3*cellSize/4);
             } else if (trap.attack == TrapAttack.FIRE) {
-                // Пламя - оранжевые языки
+
                 g2d.setColor(new Color(255, 200, 0));
                 for (int i = 0; i < 3; i++) {
                     int flameX = cellX + cellSize/4 + i * cellSize/4;
@@ -434,7 +421,7 @@ public class GamePanel extends JPanel {
     }
 
     private void drawUI(Graphics2D g2d) {
-        // Убрали второе поле с информацией - теперь вся информация в верхней панели PlayerInfoPanel
+
         if (currentPlayerId != -1) {
             g2d.setColor(new Color(255, 255, 255, 150));
             g2d.setFont(new Font("Arial", Font.PLAIN, 12));

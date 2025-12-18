@@ -3,10 +3,9 @@ package ru.kpfu.itis.common;
 import java.io.Serializable;
 
 public class Message implements Serializable {
-    // ДОБАВИТЬ ЭТУ СТРОЧКУ
+
     private static final long serialVersionUID = 1L;
 
-    // Типы сообщений
     public static final int CONNECT = 1;
     public static final int DISCONNECT = 2;
     public static final int MOVE = 3;
@@ -34,7 +33,6 @@ public class Message implements Serializable {
         this(type, 0, data);
     }
 
-    // Геттеры
     public int getType() { return type; }
     public int getPlayerId() { return playerId; }
     public Object getData() { return data; }

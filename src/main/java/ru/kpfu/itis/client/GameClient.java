@@ -60,10 +60,10 @@ public class GameClient extends JFrame {
                     JOptionPane.ERROR_MESSAGE);
             dispose();
         } else {
-            // Получаем playerId после подключения
+
             new Thread(() -> {
                 try {
-                    Thread.sleep(500); // Даем время на получение CONNECT сообщения
+                    Thread.sleep(500); 
                     SwingUtilities.invokeLater(() -> {
                         playerId = networkClient.getPlayerId();
                     });
@@ -78,7 +78,7 @@ public class GameClient extends JFrame {
         SwingUtilities.invokeLater(() -> {
             gamePanel.updateGameState(state, playerId);
             infoPanel.updateInfo(state, playerId);
-            // Восстанавливаем фокус после обновления состояния для работы клавиатуры
+
             gamePanel.requestFocusInWindow();
         });
     }
@@ -105,7 +105,6 @@ public class GameClient extends JFrame {
         InputMap inputMap = gamePanel.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW);
         ActionMap actionMap = gamePanel.getActionMap();
 
-        // WASD клавиши
         String[] wasdKeys = {"W", "S", "A", "D"};
         Direction[] wasdDirections = {
                 Direction.UP, Direction.DOWN, Direction.LEFT, Direction.RIGHT
@@ -124,12 +123,11 @@ public class GameClient extends JFrame {
             });
         }
 
-        // Стрелки
         inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_UP, 0), "moveUP");
         inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_DOWN, 0), "moveDOWN");
         inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_LEFT, 0), "moveLEFT");
         inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_RIGHT, 0), "moveRIGHT");
-        
+
         actionMap.put("moveUP", new AbstractAction() {
             @Override
             public void actionPerformed(ActionEvent e) {
@@ -222,7 +220,7 @@ public class GameClient extends JFrame {
         }
 
         private JLabel createInfoLabel(String text, Color color) {
-            // Используем HTML с nowrap для отображения в одну строку
+
             JLabel label = new JLabel("<html><nobr>" + text + "</nobr></html>");
             label.setForeground(color);
             label.setFont(new Font("Segoe UI", Font.BOLD, 14));
@@ -258,17 +256,16 @@ public class GameClient extends JFrame {
             setLayout(new BorderLayout());
             setPreferredSize(new Dimension(0, 150));
             setBackground(new Color(30, 30, 40));
-            
-            // Создаем заголовок с HTML для правильного отображения эмодзи без переноса
+
             JLabel titleLabel = new JLabel("<html><nobr><b>💬 Чат</b></nobr></html>");
             titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 12));
             titleLabel.setForeground(Color.WHITE);
             titleLabel.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
-            
+
             JPanel headerPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
             headerPanel.setBackground(new Color(40, 40, 50));
             headerPanel.add(titleLabel);
-            
+
             chatArea = new JTextArea();
             chatArea.setEditable(false);
             chatArea.setBackground(new Color(30, 30, 40));

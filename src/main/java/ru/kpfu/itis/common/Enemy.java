@@ -4,7 +4,7 @@ import java.io.Serializable;
 import java.util.List;
 
 public class Enemy implements Serializable {
-    // ДОБАВИТЬ ЭТУ СТРОЧКУ
+
     private static final long serialVersionUID = 1L;
 
     public enum EnemyType {
@@ -39,7 +39,7 @@ public class Enemy implements Serializable {
     public int health;
     public Direction direction;
     public long lastMoveTime;
-    public long lastAttackTime;  // Время последней атаки для кулдауна
+    public long lastAttackTime;  
     public boolean isActive;
 
     public Enemy(int id, EnemyType type, int x, int y) {
@@ -50,7 +50,7 @@ public class Enemy implements Serializable {
         this.health = type.health;
         this.direction = Direction.DOWN;
         this.lastMoveTime = System.currentTimeMillis();
-        this.lastAttackTime = 0;  // Инициализируем как 0, чтобы первая атака была возможна
+        this.lastAttackTime = 0;  
         this.isActive = true;
     }
 
@@ -60,7 +60,6 @@ public class Enemy implements Serializable {
         long currentTime = System.currentTimeMillis();
         if (currentTime - lastMoveTime < 1000 / type.speed) return;
 
-        // Простой ИИ: двигаемся в случайном направлении
         Direction[] directions = Direction.values();
         Direction newDir = directions[(int)(Math.random() * directions.length)];
 

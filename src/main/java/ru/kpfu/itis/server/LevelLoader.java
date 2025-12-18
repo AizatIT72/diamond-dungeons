@@ -1,11 +1,14 @@
 package ru.kpfu.itis.server;
 
 import ru.kpfu.itis.common.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.util.*;
 
 public class LevelLoader {
+    private static final Logger logger = LoggerFactory.getLogger(LevelLoader.class);
 
     public static class GeneratedLevel {
         public TileType[][] map;
@@ -23,7 +26,6 @@ public class LevelLoader {
             traps = new ArrayList<>();
             totalDiamonds = 0;
 
-            // Инициализируем всю карту полом по умолчанию
             for (int y = 0; y < height; y++) {
                 for (int x = 0; x < width; x++) {
                     map[y][x] = TileType.FLOOR;
@@ -43,7 +45,6 @@ public class LevelLoader {
             File file = new File(path);
             if (file.exists()) {
                 try {
-                    System.out.println("Загружаем уровень из: " + file.getAbsolutePath());
                     BufferedReader reader = new BufferedReader(new FileReader(file));
                     List<String> lines = new ArrayList<>();
                     String line;
@@ -53,39 +54,35 @@ public class LevelLoader {
                     reader.close();
                     GeneratedLevel level = parseLevel(lines);
                     if (level != null) {
-                        System.out.println("Уровень " + levelNum + " успешно загружен. Размер: " +
-                                level.map[0].length + "x" + level.map.length);
+                        logger.info("Уровень {} успешно загружен. Размер: {}x{}", levelNum, level.map[0].length, level.map.length);
                         return level;
                     }
                 } catch (IOException e) {
-                    System.err.println("Ошибка чтения файла " + path + ": " + e.getMessage());
+                    logger.error("Ошибка чтения файла {}", path, e);
                 }
             }
         }
 
-        // Если файл не найден, создаем простой уровень
-        System.out.println("Уровень " + levelNum + " не найден, создаем простой уровень...");
+        logger.warn("Уровень {} не найден, создаем простой уровень...", levelNum);
         return createSimpleLevel();
     }
 
     private static GeneratedLevel parseLevel(List<String> lines) {
         if (lines.isEmpty()) {
-            System.err.println("Файл уровня пуст");
+            logger.error("Файл уровня пуст");
             return null;
         }
 
-        // Удаляем пустые строки
         lines.removeIf(String::isEmpty);
 
         if (lines.isEmpty()) {
-            System.err.println("Нет данных в файле уровня");
+            logger.error("Нет данных в файле уровня");
             return null;
         }
 
         int height = lines.size();
         int width = 0;
 
-        // Находим максимальную ширину
         for (String line : lines) {
             if (line.length() > width) {
                 width = line.length();
@@ -93,12 +90,11 @@ public class LevelLoader {
         }
 
         if (width == 0 || height == 0) {
-            System.err.println("Неверные размеры уровня: " + width + "x" + height);
+            logger.error("Неверные размеры уровня: {}x{}", width, height);
             return null;
         }
 
-        System.out.println("Размер уровня: " + width + "x" + height);
-
+        logger.debug("Размер уровня: {}x{}", width, height);
         GeneratedLevel level = new GeneratedLevel(width, height);
         int enemyId = 1;
 
@@ -114,7 +110,7 @@ public class LevelLoader {
                     case '@':
                         level.map[y][x] = TileType.FLOOR;
                         level.startPositions.add(new int[]{x, y});
-                        System.out.println("Стартовая позиция @: " + x + "," + y);
+                        logger.debug("Стартовая позиция @: {},{}", x, y);
                         break;
                     case '$':
                         level.map[y][x] = TileType.DIAMOND;
@@ -122,7 +118,7 @@ public class LevelLoader {
                         break;
                     case 'D':
                         level.map[y][x] = TileType.DOOR;
-                        System.out.println("Дверь D: " + x + "," + y);
+                        logger.debug("Дверь D: {},{}", x, y);
                         break;
                     case 'T':
                         level.map[y][x] = TileType.TRAP;
@@ -136,19 +132,19 @@ public class LevelLoader {
                     case 'E':
                         level.map[y][x] = TileType.FLOOR;
                         level.enemies.add(new Enemy(enemyId++, Enemy.EnemyType.SKELETON, x, y));
-                        System.out.println("Враг E (Скелет): " + x + "," + y);
+                        logger.debug("Враг E (Скелет): {},{}", x, y);
                         break;
                     case 'G':
                         level.map[y][x] = TileType.FLOOR;
                         level.enemies.add(new Enemy(enemyId++, Enemy.EnemyType.GHOST, x, y));
-                        System.out.println("Враг G (Призрак): " + x + "," + y);
+                        logger.debug("Враг G (Призрак): {},{}", x, y);
                         break;
                     case 'F':
                         level.map[y][x] = TileType.FLOOR;
                         level.enemies.add(new Enemy(enemyId++, Enemy.EnemyType.BAT, x, y));
-                        System.out.println("Враг F (Летучая мышь): " + x + "," + y);
+                        logger.debug("Враг F (Летучая мышь): {},{}", x, y);
                         break;
-                    // Патрульные мобы
+
                     case 'P':
                         level.map[y][x] = TileType.FLOOR;
                         PatrolEnemy patrolH = new PatrolEnemy();
@@ -158,7 +154,7 @@ public class LevelLoader {
                         patrolH.direction = PatrolDirection.POSITIVE;
                         patrolH.lastMoveTime = System.currentTimeMillis();
                         level.patrolEnemies.add(patrolH);
-                        System.out.println("Патрульный моб P (горизонтально): " + x + "," + y);
+                        logger.debug("Патрульный моб P (горизонтально): {},{}", x, y);
                         break;
                     case 'p':
                         level.map[y][x] = TileType.FLOOR;
@@ -169,50 +165,50 @@ public class LevelLoader {
                         patrolV.direction = PatrolDirection.POSITIVE;
                         patrolV.lastMoveTime = System.currentTimeMillis();
                         level.patrolEnemies.add(patrolV);
-                        System.out.println("Патрульный моб p (вертикально): " + x + "," + y);
+                        logger.debug("Патрульный моб p (вертикально): {},{}", x, y);
                         break;
-                    // Ловушки - стрелы (контактные)
+
                     case '<':
-                        level.map[y][x] = TileType.WALL;  // Ловушка в стене
+                        level.map[y][x] = TileType.WALL;  
                         level.traps.add(new Trap(x, y, TrapType.PRESSURE, TrapAttack.ARROW, Direction.LEFT));
-                        System.out.println("Ловушка < (стрела влево): " + x + "," + y);
+                        logger.debug("Ловушка < (стрела влево): {},{}", x, y);
                         break;
                     case '>':
                         level.map[y][x] = TileType.WALL;
                         level.traps.add(new Trap(x, y, TrapType.PRESSURE, TrapAttack.ARROW, Direction.RIGHT));
-                        System.out.println("Ловушка > (стрела вправо): " + x + "," + y);
+                        logger.debug("Ловушка > (стрела вправо): {},{}", x, y);
                         break;
                     case '^':
                         level.map[y][x] = TileType.WALL;
                         level.traps.add(new Trap(x, y, TrapType.PRESSURE, TrapAttack.ARROW, Direction.UP));
-                        System.out.println("Ловушка ^ (стрела вверх): " + x + "," + y);
+                        logger.debug("Ловушка ^ (стрела вверх): {},{}", x, y);
                         break;
                     case 'v':
                     case 'V':
                         level.map[y][x] = TileType.WALL;
                         level.traps.add(new Trap(x, y, TrapType.PRESSURE, TrapAttack.ARROW, Direction.DOWN));
-                        System.out.println("Ловушка v (стрела вниз): " + x + "," + y);
+                        logger.debug("Ловушка v (стрела вниз): {},{}", x, y);
                         break;
-                    // Ловушки - пламя (таймерные)
+
                     case '[':
                         level.map[y][x] = TileType.WALL;
                         level.traps.add(new Trap(x, y, TrapType.TIMER, TrapAttack.FIRE, Direction.LEFT));
-                        System.out.println("Ловушка [ (пламя влево): " + x + "," + y);
+                        logger.debug("Ловушка [ (пламя влево): {},{}", x, y);
                         break;
                     case ']':
                         level.map[y][x] = TileType.WALL;
                         level.traps.add(new Trap(x, y, TrapType.TIMER, TrapAttack.FIRE, Direction.RIGHT));
-                        System.out.println("Ловушка ] (пламя вправо): " + x + "," + y);
+                        logger.debug("Ловушка ] (пламя вправо): {},{}", x, y);
                         break;
                     case '{':
                         level.map[y][x] = TileType.WALL;
                         level.traps.add(new Trap(x, y, TrapType.TIMER, TrapAttack.FIRE, Direction.UP));
-                        System.out.println("Ловушка { (пламя вверх): " + x + "," + y);
+                        logger.debug("Ловушка {{ (пламя вверх): {},{}", x, y);
                         break;
                     case '}':
                         level.map[y][x] = TileType.WALL;
                         level.traps.add(new Trap(x, y, TrapType.TIMER, TrapAttack.FIRE, Direction.DOWN));
-                        System.out.println("Ловушка } (пламя вниз): " + x + "," + y);
+                        logger.debug("Ловушка }} (пламя вниз): {},{}", x, y);
                         break;
                     case ' ':
                     case '.':
@@ -222,11 +218,9 @@ public class LevelLoader {
             }
         }
 
-        System.out.println("Уровень содержит: " + level.totalDiamonds + " алмазов, " +
-                level.enemies.size() + " врагов, " +
-                level.patrolEnemies.size() + " патрульных мобов, " +
-                level.traps.size() + " ловушек, " +
-                level.startPositions.size() + " стартовых позиций");
+        logger.info("Уровень содержит: {} алмазов, {} врагов, {} патрульных мобов, {} ловушек, {} стартовых позиций",
+                level.totalDiamonds, level.enemies.size(), level.patrolEnemies.size(),
+                level.traps.size(), level.startPositions.size());
 
         return level;
     }
@@ -237,7 +231,6 @@ public class LevelLoader {
 
         GeneratedLevel level = new GeneratedLevel(width, height);
 
-        // Границы
         for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
                 if (x == 0 || x == width - 1 || y == 0 || y == height - 1) {
@@ -246,12 +239,10 @@ public class LevelLoader {
             }
         }
 
-        // Стартовые позиции
         level.startPositions.add(new int[]{1, 1});
         level.startPositions.add(new int[]{width - 2, 1});
         level.startPositions.add(new int[]{1, height - 2});
 
-        // Алмазы
         for (int x = 5; x < 15; x += 3) {
             for (int y = 5; y < 15; y += 3) {
                 if (level.map[y][x] == TileType.FLOOR) {
@@ -261,19 +252,16 @@ public class LevelLoader {
             }
         }
 
-        // Выходы
         level.map[height - 2][width - 2] = TileType.DOOR;
         level.map[1][width - 2] = TileType.DOOR;
 
-        // Несколько врагов
         level.enemies.add(new Enemy(1, Enemy.EnemyType.BAT, 5, 5));
         level.enemies.add(new Enemy(2, Enemy.EnemyType.SKELETON, width - 5, height - 5));
 
         return level;
     }
 
-    // Убираем автоматическое создание файлов
     public static void createDefaultLevels() {
-        // Ничего не делаем
+
     }
 }

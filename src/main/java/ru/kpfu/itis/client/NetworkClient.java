@@ -4,6 +4,8 @@ import ru.kpfu.itis.protocol.*;
 import ru.kpfu.itis.common.*;
 import ru.kpfu.itis.protocol.ProtocolException;
 import ru.kpfu.itis.server.GameWorld;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.net.*;
@@ -11,6 +13,7 @@ import java.util.concurrent.*;
 import java.util.function.Consumer;
 
 public class NetworkClient {
+    private static final Logger logger = LoggerFactory.getLogger(NetworkClient.class);
     private Socket socket;
     private OutputStream out;
     private InputStream in;
@@ -32,9 +35,8 @@ public class NetworkClient {
         try {
             socket = new Socket();
             socket.setTcpNoDelay(true);
-            socket.setSoTimeout(30000); // Увеличиваем таймаут до 30 секунд
+            socket.setSoTimeout(30000); 
 
-            // Подключаемся с таймаутом
             socket.connect(new InetSocketAddress(host, port), 5000);
 
             out = socket.getOutputStream();
@@ -43,21 +45,18 @@ public class NetworkClient {
             connected = true;
             lastMessageTime = System.currentTimeMillis();
 
-            // Запускаем поток чтения с использованием протокола
             executor.execute(this::readLoop);
 
-            // Отправляем сообщение подключения через протокол
-            Thread.sleep(100); // Небольшая задержка для установки соединения
+            Thread.sleep(100); 
             sendConnectMessage(username, characterType);
 
-            // Запускаем heartbeat
             startHeartbeat();
 
-            System.out.println("✅ Успешно подключились к серверу " + host + ":" + port);
+            logger.info("Успешно подключились к серверу {}:{}", host, port);
             return true;
 
         } catch (Exception e) {
-            System.err.println("❌ Ошибка подключения к " + host + ":" + port + ": " + e.getMessage());
+            logger.error("Ошибка подключения к {}:{}", host, port, e);
             disconnect();
             return false;
         }
@@ -71,18 +70,17 @@ public class NetworkClient {
                 return;
             }
 
-            // Отправляем heartbeat каждые 10 секунд независимо от активности
             try {
                 GameMessage heartbeat = GameProtocol.createHeartbeatMessage();
                 synchronized (writeLock) {
                     GameProtocol.writeMessage(out, heartbeat);
                 }
-                System.out.println("❤️  Отправлен heartbeat серверу");
+                logger.debug("Отправлен heartbeat серверу");
             } catch (Exception e) {
-                System.err.println("❌ Не удалось отправить heartbeat: " + e.getMessage());
+                logger.error("Не удалось отправить heartbeat", e);
                 disconnect();
             }
-        }, 10000, 10000, TimeUnit.MILLISECONDS); // Каждые 10 секунд
+        }, 10000, 10000, TimeUnit.MILLISECONDS); 
     }
 
     private void sendConnectMessage(String username, String characterType) {
@@ -91,21 +89,20 @@ public class NetworkClient {
             synchronized (writeLock) {
                 GameProtocol.writeMessage(out, connectMsg);
             }
-            System.out.println("📤 Отправлено сообщение CONNECT с именем: " + username);
+            logger.debug("Отправлено сообщение CONNECT с именем: {}", username);
         } catch (Exception e) {
-            System.err.println("❌ Ошибка отправки сообщения CONNECT: " + e.getMessage());
+            logger.error("Ошибка отправки сообщения CONNECT", e);
         }
     }
 
     private void readLoop() {
-        System.out.println("📥 Начинаем чтение сообщений от сервера");
-
+        logger.info("Начинаем чтение сообщений от сервера");
         try {
             while (connected && socket != null && !socket.isClosed() && socket.isConnected()) {
                 try {
                     GameMessage message = GameProtocol.readMessage(in);
                     if (message == null) {
-                        System.out.println("📭 Сервер закрыл соединение (конец потока)");
+                        logger.info("Сервер закрыл соединение (конец потока)");
                         break;
                     }
 
@@ -113,44 +110,39 @@ public class NetworkClient {
                     handleProtocolMessage(message);
 
                 } catch (ProtocolException e) {
-                    System.err.println("❌ Ошибка протокола: " + e.getMessage());
-
-                    // Пробуем восстановить соединение
+                    logger.error("Ошибка протокола: {}", e.getMessage());
                     if (e.getMessage().contains("Неверный заголовок")) {
-                        System.err.println("⚠️  Попытка восстановить синхронизацию протокола...");
+                        logger.warn("Попытка восстановить синхронизацию протокола...");
                         try {
                             if (in.available() > 0) {
                                 in.skip(1);
                                 continue;
                             }
                         } catch (IOException ex) {
-                            // Игнорируем
+                            logger.debug("Ошибка при пропуске байта", ex);
                         }
                     }
-
-                    // Если это не ошибка заголовка, разрываем соединение
                     break;
                 } catch (SocketTimeoutException e) {
-                    // Таймаут - это нормально, продолжаем ждать
-                    System.out.println("⏱️  Таймаут при чтении, продолжаем ожидание...");
+                    logger.debug("Таймаут при чтении, продолжаем ожидание...");
                     continue;
                 } catch (EOFException e) {
-                    System.out.println("📭 Конец потока данных (EOF)");
+                    logger.info("Конец потока данных (EOF)");
                     break;
                 } catch (IOException e) {
                     if (e.getMessage() != null && (e.getMessage().contains("closed") ||
                             e.getMessage().contains("reset") || e.getMessage().contains("abort"))) {
-                        System.err.println("❌ Соединение разорвано: " + e.getMessage());
+                        logger.warn("Соединение разорвано: {}", e.getMessage());
                         break;
                     }
-                    System.err.println("❌ Ошибка чтения: " + e.getMessage());
+                    logger.error("Ошибка чтения", e);
                     break;
                 }
             }
         } catch (Exception e) {
-            System.err.println("❌ Неожиданная ошибка в цикле чтения: " + e.getMessage());
+            logger.error("Неожиданная ошибка в цикле чтения", e);
         } finally {
-            System.out.println("📤 Завершение цикла чтения");
+            logger.debug("Завершение цикла чтения");
             disconnect();
         }
     }
@@ -167,19 +159,17 @@ public class NetworkClient {
                             int newPlayerId = Integer.parseInt(connectData[0]);
                             if (this.playerId == -1) {
                                 this.playerId = newPlayerId;
-                                System.out.println("✅ Присвоен ID игрока: " + playerId);
-                                // Уведомляем GUI о подключении
+                                logger.info("Присвоен ID игрока: {}", playerId);
                                 if (onMessageReceived != null) {
                                     onMessageReceived.accept(new Message(
                                             Message.CHAT, 0, "✅ Подключен к серверу как игрок #" + playerId
                                     ));
                                 }
                             } else if (this.playerId != newPlayerId) {
-                                System.err.println("⚠️  Несоответствие playerId: было " +
-                                        playerId + ", стало " + newPlayerId);
+                                logger.warn("Несоответствие playerId: было {}, стало {}", playerId, newPlayerId);
                             }
                         } catch (NumberFormatException e) {
-                            System.err.println("❌ Неверный формат playerId: " + connectData[0]);
+                            logger.error("Неверный формат playerId: {}", connectData[0], e);
                         }
                     }
                     break;
@@ -193,10 +183,10 @@ public class NetworkClient {
                                 onGameStateUpdate.accept(state);
                             }
                         } else {
-                            System.err.println("❌ Получен неверный тип GameState");
+                            logger.warn("Получен неверный тип GameState");
                         }
                     } catch (Exception e) {
-                        System.err.println("❌ Ошибка десериализации GameState: " + e.getMessage());
+                        logger.error("Ошибка десериализации GameState", e);
                     }
                     break;
 
@@ -235,7 +225,6 @@ public class NetworkClient {
 
                 case GameProtocol.TYPE_PLAYER_LIST:
                     String playerList = new String(message.getData());
-                    System.out.println("👥 Список игроков от сервера: " + playerList);
                     if (onMessageReceived != null) {
                         onMessageReceived.accept(new Message(
                                 Message.CHAT, 0, playerList
@@ -244,13 +233,12 @@ public class NetworkClient {
                     break;
 
                 case GameProtocol.TYPE_HEARTBEAT:
-                    // Просто подтверждаем получение heartbeat
-                    System.out.println("❤️  Получен heartbeat от сервера");
+                    logger.debug("Получен heartbeat от сервера");
                     break;
 
                 case GameProtocol.TYPE_ERROR:
                     GameProtocol.ErrorData errorData = GameProtocol.parseErrorMessage(message);
-                    System.err.println("❌ Ошибка от сервера [" + errorData.errorCode + "]: " + errorData.errorMessage);
+                    logger.error("Ошибка от сервера [{}]: {}", errorData.errorCode, errorData.errorMessage);
                     if (onMessageReceived != null) {
                         onMessageReceived.accept(new Message(
                                 Message.CHAT, 0, "❌ Ошибка сервера: " + errorData.errorMessage
@@ -259,17 +247,16 @@ public class NetworkClient {
                     break;
 
                 default:
-                    System.err.println("⚠️  Неизвестный тип сообщения: " + type);
+                    logger.warn("Неизвестный тип сообщения: {}", type);
             }
         } catch (Exception e) {
-            System.err.println("❌ Ошибка обработки протокольного сообщения: " + e.getMessage());
-            e.printStackTrace();
+            logger.error("Ошибка обработки протокольного сообщения", e);
         }
     }
 
     public void sendMove(Direction direction) {
         if (playerId == -1 || !connected) {
-            System.err.println("⚠️  Не могу отправить MOVE: не подключен или playerId не установлен");
+            logger.warn("Не могу отправить MOVE: не подключен или playerId не установлен");
             return;
         }
 
@@ -280,7 +267,7 @@ public class NetworkClient {
                 GameProtocol.writeMessage(out, moveMsg);
             }
         } catch (Exception e) {
-            System.err.println("❌ Ошибка отправки MOVE: " + e.getMessage());
+            logger.error("Ошибка отправки MOVE", e);
             if (e.getMessage() != null && (e.getMessage().contains("разорвано") ||
                     e.getMessage().contains("closed") || e.getMessage().contains("null"))) {
                 disconnect();
@@ -290,7 +277,7 @@ public class NetworkClient {
 
     public void sendAction(String action) {
         if (playerId == -1 || !connected) {
-            System.err.println("⚠️  Не могу отправить ACTION: не подключен или playerId не установлен");
+            logger.warn("Не могу отправить ACTION: не подключен или playerId не установлен");
             return;
         }
 
@@ -300,7 +287,7 @@ public class NetworkClient {
                 GameProtocol.writeMessage(out, actionMsg);
             }
         } catch (Exception e) {
-            System.err.println("❌ Ошибка отправки ACTION: " + e.getMessage());
+            logger.error("Ошибка отправки ACTION", e);
             if (e.getMessage() != null && (e.getMessage().contains("разорвано") ||
                     e.getMessage().contains("closed") || e.getMessage().contains("null"))) {
                 disconnect();
@@ -310,7 +297,7 @@ public class NetworkClient {
 
     public void sendChat(String text) {
         if (playerId == -1 || !connected) {
-            System.err.println("⚠️  Не могу отправить CHAT: не подключен или playerId не установлен");
+            logger.warn("Не могу отправить CHAT: не подключен или playerId не установлен");
             return;
         }
 
@@ -320,7 +307,7 @@ public class NetworkClient {
                 GameProtocol.writeMessage(out, chatMsg);
             }
         } catch (Exception e) {
-            System.err.println("❌ Ошибка отправки CHAT: " + e.getMessage());
+            logger.error("Ошибка отправки CHAT", e);
             if (e.getMessage() != null && (e.getMessage().contains("разорвано") ||
                     e.getMessage().contains("closed") || e.getMessage().contains("null"))) {
                 disconnect();
@@ -347,10 +334,9 @@ public class NetworkClient {
     public synchronized void disconnect() {
         if (!connected) return;
 
-        System.out.println("📤 Начинаем отключение от сервера...");
+        logger.info("Начинаем отключение от сервера...");
         connected = false;
 
-        // Отправляем сообщение о дисконнекте, если можем
         if (playerId != -1 && out != null) {
             try {
                 GameMessage disconnectMsg = new GameMessage(
@@ -360,49 +346,42 @@ public class NetworkClient {
                 synchronized (writeLock) {
                     GameProtocol.writeMessage(out, disconnectMsg);
                 }
-                System.out.println("📤 Отправлено сообщение DISCONNECT для playerId: " + playerId);
+                logger.debug("Отправлено сообщение DISCONNECT для playerId: {}", playerId);
             } catch (Exception e) {
-                // Игнорируем, т.к. мы уже отключаемся
+                logger.debug("Ошибка при отправке DISCONNECT", e);
             }
         }
 
-        // Останавливаем heartbeat
         if (heartbeatExecutor != null) {
             heartbeatExecutor.shutdownNow();
         }
 
-        // Останавливаем executor
         executor.shutdownNow();
 
-        // Закрываем сокет
         try {
             if (socket != null && !socket.isClosed()) {
                 socket.close();
             }
         } catch (IOException e) {
-            // Игнорируем
+            logger.debug("Ошибка при закрытии сокета", e);
         }
 
-        // Уведомляем GUI об отключении
         if (onMessageReceived != null) {
             onMessageReceived.accept(new Message(
                     Message.CHAT, 0, "❌ Отключен от сервера"
             ));
         }
 
-        System.out.println("📤 Отключение завершено. PlayerId: " + playerId);
+        logger.info("Отключение завершено. PlayerId: {}", playerId);
     }
 
-    /**
-     * Пытается переподключиться к серверу
-     */
     public boolean reconnect(String host, int port) {
         if (connected) {
             disconnect();
         }
 
         try {
-            Thread.sleep(1000); // Ждем секунду перед переподключением
+            Thread.sleep(1000); 
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }

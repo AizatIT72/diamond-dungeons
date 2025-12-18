@@ -1,45 +1,46 @@
 package ru.kpfu.itis.server;
 
 import ru.kpfu.itis.common.GameConstants;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.IOException;
 import java.net.ServerSocket;
 
 public class ServerMain {
+    private static final Logger logger = LoggerFactory.getLogger(ServerMain.class);
     private static GameServer server;
     private static int actualPort = -1;
 
     public static void main(String[] args) {
         try {
-            System.out.println("╔═══════════════════════════════════════╗");
-            System.out.println("║     DIAMOND DUNGEONS - СЕРВЕР        ║");
-            System.out.println("╚═══════════════════════════════════════╝");
+            logger.info("╔═══════════════════════════════════════╗");
+            logger.info("║     DIAMOND DUNGEONS - СЕРВЕР        ║");
+            logger.info("╚═══════════════════════════════════════╝");
 
-            // Пробуем стандартный порт или из аргументов
             int port = GameConstants.SERVER_PORT;
             if (args.length > 0) {
                 try {
                     port = Integer.parseInt(args[0]);
                 } catch (NumberFormatException e) {
-                    System.out.println("Неверный порт, используем " + GameConstants.SERVER_PORT);
+                    logger.warn("Неверный порт, используем {}", GameConstants.SERVER_PORT);
                     port = GameConstants.SERVER_PORT;
                 }
             }
 
-            // Запускаем сервер
             if (startServer(port)) {
-                System.out.println("\n✅ Сервер успешно запущен на порту " + actualPort);
-                System.out.println("👥 Ожидание подключения игроков...");
-                System.out.println("🛑 Для остановки нажмите Enter");
+                logger.info("\n✅ Сервер успешно запущен на порту {}", actualPort);
+                logger.info("👥 Ожидание подключения игроков...");
+                logger.info("🛑 Для остановки нажмите Enter");
 
-                // Ожидание остановки
                 System.in.read();
 
                 server.stop();
-                System.out.println("🛑 Сервер остановлен");
+                logger.info("🛑 Сервер остановлен");
             }
 
         } catch (Exception e) {
-            System.err.println("❌ Ошибка: " + e.getMessage());
+            logger.error("Ошибка", e);
         }
     }
 
@@ -50,11 +51,9 @@ public class ServerMain {
             int currentPort = port + i;
 
             try {
-                // Проверяем порт
                 ServerSocket testSocket = new ServerSocket(currentPort);
                 testSocket.close();
 
-                // Запускаем сервер
                 server = new GameServer(currentPort);
                 server.start();
                 actualPort = currentPort;
@@ -62,13 +61,13 @@ public class ServerMain {
                 return true;
 
             } catch (java.net.BindException e) {
-                System.out.println("⚠️  Порт " + currentPort + " занят");
+                logger.warn("Порт {} занят", currentPort);
             } catch (IOException e) {
-                System.err.println("❌ Ошибка на порту " + currentPort + ": " + e.getMessage());
+                logger.error("Ошибка на порту {}", currentPort, e);
             }
         }
 
-        System.err.println("❌ Не удалось запустить сервер");
+        logger.error("Не удалось запустить сервер");
         return false;
     }
 

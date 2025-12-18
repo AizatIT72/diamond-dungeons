@@ -2,29 +2,24 @@ package ru.kpfu.itis.common;
 
 import java.io.Serializable;
 
-/**
- * Ловушка - объект, который атакует соседние клетки.
- * Ловушка НЕ находится в клетке поражения, а стреляет в направлении.
- */
 public class Trap implements Serializable {
     private static final long serialVersionUID = 1L;
 
-    public int x;  // Позиция самой ловушки (в стене или сбоку)
+    public int x;  
     public int y;
-    
-    public TrapType type;        // Тип активации (PRESSURE или TIMER)
-    public TrapAttack attack;    // Тип атаки (ARROW или FIRE)
-    public Direction direction;  // Направление выстрела (UP, DOWN, LEFT, RIGHT)
-    
-    public int range;                    // Дальность поражения (1 или 2 клетки)
-    public long lastActivation;          // Время последней активации (для таймера)
-    public long lastDamageTime;          // Время последнего нанесения урона (для кулдауна)
-    public boolean active;               // Стреляет сейчас или нет
-    
-    // Для таймерных ловушек
-    private static final long TIMER_INTERVAL = 3000;  // Интервал между выстрелами (мс)
-    private static final long ACTIVE_DURATION = 300;  // Длительность выстрела (мс)
-    public static final long DAMAGE_COOLDOWN = 1000;  // Кулдаун урона (мс) - как у мобов
+
+    public TrapType type;        
+    public TrapAttack attack;    
+    public Direction direction;  
+
+    public int range;                    
+    public long lastActivation;          
+    public long lastDamageTime;          
+    public boolean active;               
+
+    private static final long TIMER_INTERVAL = 3000;  
+    private static final long ACTIVE_DURATION = 300;  
+    public static final long DAMAGE_COOLDOWN = 1000;  
 
     public Trap() {
         this.active = false;
@@ -44,9 +39,6 @@ public class Trap implements Serializable {
         this.lastDamageTime = 0;
     }
 
-    /**
-     * Проверяет, нужно ли активировать таймерную ловушку.
-     */
     public boolean shouldActivate(long currentTime) {
         if (type == TrapType.TIMER) {
             return (currentTime - lastActivation) >= TIMER_INTERVAL;
@@ -54,17 +46,11 @@ public class Trap implements Serializable {
         return false;
     }
 
-    /**
-     * Активирует ловушку.
-     */
     public void activate(long currentTime) {
         this.active = true;
         this.lastActivation = currentTime;
     }
 
-    /**
-     * Деактивирует ловушку после выстрела.
-     */
     public void deactivate(long currentTime) {
         if (active && (currentTime - lastActivation) >= ACTIVE_DURATION) {
             this.active = false;
@@ -76,4 +62,3 @@ public class Trap implements Serializable {
         return "Trap{x=" + x + ", y=" + y + ", type=" + type + ", attack=" + attack + ", dir=" + direction + "}";
     }
 }
-

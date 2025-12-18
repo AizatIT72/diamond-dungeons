@@ -9,7 +9,6 @@ public class EnemyAI {
         void updateEnemy(Enemy enemy, TileType[][] map, List<PlayerState> players, int currentLevel);
     }
 
-    // Базовая стратегия - случайное движение
     public static class RandomStrategy implements AIStrategy {
         @Override
         public void updateEnemy(Enemy enemy, TileType[][] map, List<PlayerState> players, int currentLevel) {
@@ -36,10 +35,9 @@ public class EnemyAI {
         }
     }
 
-    // Стратегия преследования ближайшего игрока (упрощенная)
     public static class ChaseStrategy implements AIStrategy {
-        private static final long ATTACK_COOLDOWN = 1000;  // Кулдаун атаки 1 секунда
-        
+        private static final long ATTACK_COOLDOWN = 1000;  
+
         @Override
         public void updateEnemy(Enemy enemy, TileType[][] map, List<PlayerState> players, int currentLevel) {
             if (enemy.type.speed == 0 || !enemy.isActive) return;
@@ -50,7 +48,6 @@ public class EnemyAI {
 
             if (currentTime - enemy.lastMoveTime < 1000 / speed) return;
 
-            // Находим ближайшего живого игрока
             PlayerState target = null;
             double minDistance = Double.MAX_VALUE;
 
@@ -69,7 +66,7 @@ public class EnemyAI {
             }
 
             if (target != null) {
-                // Преследуем игрока
+
                 Direction moveDir = calculateDirectionToTarget(enemy.x, enemy.y, target.x, target.y);
 
                 if (moveDir != null) {
@@ -81,7 +78,6 @@ public class EnemyAI {
                         enemy.y = newY;
                         enemy.direction = moveDir;
 
-                        // Если рядом с игроком - отнимаем жизнь (с кулдауном)
                         if (Math.abs(enemy.x - target.x) <= 1 && Math.abs(enemy.y - target.y) <= 1) {
                             if (currentTime - enemy.lastAttackTime >= ATTACK_COOLDOWN) {
                                 enemy.lastAttackTime = currentTime;
@@ -91,7 +87,7 @@ public class EnemyAI {
                     }
                 }
             } else {
-                // Патрулируем случайно
+
                 RandomStrategy randomMove = new RandomStrategy();
                 randomMove.updateEnemy(enemy, map, players, currentLevel);
             }
@@ -103,7 +99,6 @@ public class EnemyAI {
             int dx = Integer.compare(toX, fromX);
             int dy = Integer.compare(toY, fromY);
 
-            // Предпочитаем движение по оси с большей разницей
             if (Math.abs(toX - fromX) > Math.abs(toY - fromY)) {
                 return dx > 0 ? Direction.RIGHT : Direction.LEFT;
             } else {
@@ -112,9 +107,8 @@ public class EnemyAI {
         }
     }
 
-    // Стратегия засады - ждет пока игрок подойдет близко (упрощенная)
     public static class AmbushStrategy implements AIStrategy {
-        private static final long ATTACK_COOLDOWN = 1000;  // Кулдаун атаки 1 секунда
+        private static final long ATTACK_COOLDOWN = 1000;  
         private boolean isHidden = true;
 
         @Override
@@ -124,7 +118,6 @@ public class EnemyAI {
             long currentTime = System.currentTimeMillis();
             int attackRange = 2 + (currentLevel / 4);
 
-            // Проверяем, есть ли игроки в радиусе атаки
             for (PlayerState player : players) {
                 if (player.lives <= 0) continue;
 
@@ -132,7 +125,7 @@ public class EnemyAI {
 
                 if (distance <= attackRange) {
                     isHidden = false;
-                    // Отнимаем жизнь у игрока (с кулдауном)
+
                     if (currentTime - enemy.lastAttackTime >= ATTACK_COOLDOWN) {
                         enemy.lastAttackTime = currentTime;
                         player.loseLife();
@@ -141,7 +134,6 @@ public class EnemyAI {
                 }
             }
 
-            // Если никто не в радиусе, возможно прячется или медленно движется
             if (!isHidden && Math.random() < 0.2) {
                 RandomStrategy randomMove = new RandomStrategy();
                 randomMove.updateEnemy(enemy, map, players, currentLevel);
@@ -149,7 +141,6 @@ public class EnemyAI {
         }
     }
 
-    // Стратегия патрулирования по маршруту (упрощенная)
     public static class PatrolStrategy implements AIStrategy {
         private List<int[]> patrolPoints;
         private int currentPatrolIndex = 0;
@@ -157,7 +148,7 @@ public class EnemyAI {
 
         public PatrolStrategy(int startX, int startY) {
             patrolPoints = new ArrayList<>();
-            // Создаем квадратный маршрут патрулирования
+
             patrolPoints.add(new int[]{startX - 3, startY});
             patrolPoints.add(new int[]{startX, startY - 3});
             patrolPoints.add(new int[]{startX + 3, startY});
@@ -171,7 +162,6 @@ public class EnemyAI {
             long currentTime = System.currentTimeMillis();
             if (currentTime - enemy.lastMoveTime < 1000 / enemy.type.speed) return;
 
-            // Движемся к следующей точке патрулирования
             int[] targetPoint = patrolPoints.get(currentPatrolIndex);
             Direction moveDir = calculateDirectionToTarget(enemy.x, enemy.y, targetPoint[0], targetPoint[1]);
 
@@ -186,7 +176,6 @@ public class EnemyAI {
                 }
             }
 
-            // Проверяем, достигли ли точки
             if (Math.abs(enemy.x - targetPoint[0]) <= 1 && Math.abs(enemy.y - targetPoint[1]) <= 1) {
                 if (reverse) {
                     currentPatrolIndex--;
@@ -218,9 +207,8 @@ public class EnemyAI {
         }
     }
 
-    // Стратегия для боссов (упрощенная)
     public static class BossStrategy implements AIStrategy {
-        private static final long ATTACK_COOLDOWN = 1000;  // Кулдаун атаки 1 секунда
+        private static final long ATTACK_COOLDOWN = 1000;  
         private int attackCooldownCounter = 0;
 
         @Override
@@ -230,7 +218,6 @@ public class EnemyAI {
             long currentTime = System.currentTimeMillis();
             if (currentTime - enemy.lastMoveTime < 1000 / 2) return;
 
-            // Ищем всех игроков в большом радиусе
             int detectionRange = 8;
             List<PlayerState> targets = new ArrayList<>();
 
@@ -244,11 +231,10 @@ public class EnemyAI {
             }
 
             if (!targets.isEmpty()) {
-                // Выбираем игрока с наименьшим количеством жизней
+
                 PlayerState target = Collections.min(targets,
                         Comparator.comparingInt(p -> p.lives));
 
-                // Просто двигаемся к цели (без сложного moveTowards)
                 Direction moveDir = calculateDirectionToTarget(enemy.x, enemy.y, target.x, target.y);
                 if (moveDir != null) {
                     int newX = enemy.x + moveDir.dx;
@@ -259,7 +245,6 @@ public class EnemyAI {
                         enemy.y = newY;
                         enemy.direction = moveDir;
 
-                        // Если рядом - отнимаем жизнь (с кулдауном)
                         if (Math.abs(enemy.x - target.x) <= 2 && Math.abs(enemy.y - target.y) <= 2) {
                             if (currentTime - enemy.lastAttackTime >= ATTACK_COOLDOWN) {
                                 enemy.lastAttackTime = currentTime;
@@ -269,7 +254,7 @@ public class EnemyAI {
                     }
                 }
             } else {
-                // Патрулируем
+
                 RandomStrategy randomMove = new RandomStrategy();
                 randomMove.updateEnemy(enemy, map, players, currentLevel);
             }
@@ -289,7 +274,6 @@ public class EnemyAI {
         }
     }
 
-    // Фабрика для создания стратегий
     public static AIStrategy createStrategy(Enemy.EnemyType type, int currentLevel, String aiType) {
         if (aiType != null) {
             switch (aiType) {
@@ -301,7 +285,6 @@ public class EnemyAI {
             }
         }
 
-        // Автоматический выбор по умолчанию (только для существующих типов)
         switch (type) {
             case BAT:
                 if (currentLevel < 3) return new RandomStrategy();
