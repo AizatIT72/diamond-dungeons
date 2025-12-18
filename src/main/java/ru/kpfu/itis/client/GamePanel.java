@@ -36,6 +36,8 @@ public class GamePanel extends JPanel {
         drawGameWorld(g2d);
         drawPlayers(g2d);
         drawEnemies(g2d);
+        drawPatrolEnemies(g2d);
+        drawTraps(g2d);
         drawUI(g2d);
     }
 
@@ -159,11 +161,18 @@ public class GamePanel extends JPanel {
         int nameWidth = fm.stringWidth(name);
         g2d.drawString(name, x + (size - nameWidth)/2, y - 5);
 
-        if (player.health < player.maxHealth) {
-            int healthWidth = (int)((size - 4) * (player.health / (double)player.maxHealth));
-            g2d.setColor(player.health > 50 ? Color.GREEN :
-                    player.health > 25 ? Color.YELLOW : Color.RED);
-            g2d.fillRect(x + 2, y + size, healthWidth, 4);
+        // Отображаем количество жизней вместо HP
+        if (player.lives > 0) {
+            g2d.setFont(new Font("Arial", Font.BOLD, Math.max(8, size/5)));
+            FontMetrics livesFm = g2d.getFontMetrics();
+            String livesText = "❤" + player.lives;
+            int livesWidth = livesFm.stringWidth(livesText);
+            // Рисуем черный фон для читаемости
+            g2d.setColor(new Color(0, 0, 0, 150));
+            g2d.fillRect(x + (size - livesWidth)/2 - 2, y + size + 2, livesWidth + 4, size/5 + 2);
+            // Рисуем текст жизней
+            g2d.setColor(player.lives == 1 ? Color.RED : player.lives == 2 ? Color.YELLOW : Color.GREEN);
+            g2d.drawString(livesText, x + (size - livesWidth)/2, y + size + size/5 + 2);
         }
     }
 
@@ -213,6 +222,214 @@ public class GamePanel extends JPanel {
             int healthWidth = (int)(size * (enemy.health / (double)enemy.type.health));
             g2d.setColor(enemy.health > enemy.type.health/2 ? Color.GREEN : Color.RED);
             g2d.fillRect(x, y - 5, healthWidth, 3);
+        }
+    }
+
+    private void drawPatrolEnemies(Graphics2D g2d) {
+        if (currentState == null || currentState.patrolEnemies == null || currentState.patrolEnemies.isEmpty()) {
+            return;
+        }
+
+        int cellSize = calculateCellSize();
+        int offsetX = (getWidth() - currentState.map[0].length * cellSize) / 2;
+        int offsetY = (getHeight() - currentState.map.length * cellSize) / 2;
+
+        for (PatrolEnemy patrolEnemy : currentState.patrolEnemies) {
+            int x = offsetX + patrolEnemy.x * cellSize;
+            int y = offsetY + patrolEnemy.y * cellSize;
+
+            // Пульсирующая анимация для видимости
+            double pulse = Math.sin(System.currentTimeMillis() * 0.005) * 0.1 + 0.9;
+            int size = (int) (cellSize * pulse);
+            int offset = (cellSize - size) / 2;
+
+            // Красный цвет - опасность!
+            g2d.setColor(Color.RED);
+            g2d.fillOval(x + offset, y + offset, size, size);
+
+            // Черная обводка для контраста
+            g2d.setColor(Color.BLACK);
+            g2d.setStroke(new BasicStroke(2));
+            g2d.drawOval(x + offset, y + offset, size, size);
+
+            // Стрелка направления движения для читаемости
+            int centerX = x + cellSize / 2;
+            int centerY = y + cellSize / 2;
+            g2d.setColor(Color.YELLOW);
+            g2d.setStroke(new BasicStroke(2));
+
+            if (patrolEnemy.axis == PatrolAxis.HORIZONTAL) {
+                if (patrolEnemy.direction == PatrolDirection.POSITIVE) {
+                    // Стрелка вправо
+                    g2d.drawLine(centerX, centerY, centerX + size / 4, centerY);
+                    g2d.drawLine(centerX + size / 4, centerY, centerX + size / 6, centerY - size / 8);
+                    g2d.drawLine(centerX + size / 4, centerY, centerX + size / 6, centerY + size / 8);
+                } else {
+                    // Стрелка влево
+                    g2d.drawLine(centerX, centerY, centerX - size / 4, centerY);
+                    g2d.drawLine(centerX - size / 4, centerY, centerX - size / 6, centerY - size / 8);
+                    g2d.drawLine(centerX - size / 4, centerY, centerX - size / 6, centerY + size / 8);
+                }
+            } else {
+                if (patrolEnemy.direction == PatrolDirection.POSITIVE) {
+                    // Стрелка вниз
+                    g2d.drawLine(centerX, centerY, centerX, centerY + size / 4);
+                    g2d.drawLine(centerX, centerY + size / 4, centerX - size / 8, centerY + size / 6);
+                    g2d.drawLine(centerX, centerY + size / 4, centerX + size / 8, centerY + size / 6);
+                } else {
+                    // Стрелка вверх
+                    g2d.drawLine(centerX, centerY, centerX, centerY - size / 4);
+                    g2d.drawLine(centerX, centerY - size / 4, centerX - size / 8, centerY - size / 6);
+                    g2d.drawLine(centerX, centerY - size / 4, centerX + size / 8, centerY - size / 6);
+                }
+            }
+        }
+    }
+
+    private void drawTraps(Graphics2D g2d) {
+        if (currentState == null || currentState.traps == null || currentState.traps.isEmpty()) {
+            return;
+        }
+
+        int cellSize = calculateCellSize();
+        int offsetX = (getWidth() - currentState.map[0].length * cellSize) / 2;
+        int offsetY = (getHeight() - currentState.map.length * cellSize) / 2;
+
+        for (Trap trap : currentState.traps) {
+            int trapX = offsetX + trap.x * cellSize;
+            int trapY = offsetY + trap.y * cellSize;
+
+            // Рисуем саму ловушку (в стене или сбоку)
+            drawTrap(g2d, trap, trapX, trapY, cellSize);
+
+            // Если ловушка активна - рисуем зону поражения
+            if (trap.active) {
+                drawTrapZone(g2d, trap, offsetX, offsetY, cellSize);
+            }
+        }
+    }
+
+    private void drawTrap(Graphics2D g2d, Trap trap, int x, int y, int cellSize) {
+        // Определяем позицию ловушки в зависимости от направления
+        int trapDrawX = x;
+        int trapDrawY = y;
+        int trapWidth = cellSize / 4;
+        int trapHeight = cellSize / 4;
+
+        // Позиционируем ловушку в стене в зависимости от направления
+        switch (trap.direction) {
+            case LEFT:
+                // Ловушка справа в стене
+                trapDrawX = x + cellSize - trapWidth - 2;
+                trapDrawY = y + (cellSize - trapHeight) / 2;
+                break;
+            case RIGHT:
+                // Ловушка слева в стене
+                trapDrawX = x + 2;
+                trapDrawY = y + (cellSize - trapHeight) / 2;
+                break;
+            case UP:
+                // Ловушка снизу в стене
+                trapDrawX = x + (cellSize - trapWidth) / 2;
+                trapDrawY = y + cellSize - trapHeight - 2;
+                break;
+            case DOWN:
+                // Ловушка сверху в стене
+                trapDrawX = x + (cellSize - trapWidth) / 2;
+                trapDrawY = y + 2;
+                break;
+        }
+
+        // Рисуем корпус ловушки
+        if (trap.attack == TrapAttack.ARROW) {
+            // Стрела - темно-серый прямоугольник
+            g2d.setColor(new Color(80, 80, 80));
+            g2d.fillRect(trapDrawX, trapDrawY, trapWidth, trapHeight);
+            g2d.setColor(Color.BLACK);
+            g2d.drawRect(trapDrawX, trapDrawY, trapWidth, trapHeight);
+
+            // Направление стрелы
+            if (trap.active) {
+                g2d.setColor(Color.RED);
+                int centerX = trapDrawX + trapWidth / 2;
+                int centerY = trapDrawY + trapHeight / 2;
+                g2d.fillOval(centerX - 3, centerY - 3, 6, 6);
+            }
+        } else if (trap.attack == TrapAttack.FIRE) {
+            // Пламя - оранжевый/красный овал
+            if (trap.active) {
+                g2d.setColor(new Color(255, 100, 0));
+            } else {
+                // Мигание для таймерных ловушек
+                double pulse = Math.sin(System.currentTimeMillis() * 0.01) * 0.3 + 0.7;
+                int alpha = (int) (255 * pulse);
+                g2d.setColor(new Color(255, 150, 0, alpha));
+            }
+            g2d.fillOval(trapDrawX, trapDrawY, trapWidth, trapHeight);
+            g2d.setColor(Color.BLACK);
+            g2d.drawOval(trapDrawX, trapDrawY, trapWidth, trapHeight);
+        }
+    }
+
+    private void drawTrapZone(Graphics2D g2d, Trap trap, int offsetX, int offsetY, int cellSize) {
+        // Вычисляем зону поражения
+        java.util.List<int[]> targetCells = new java.util.ArrayList<>();
+        for (int i = 1; i <= trap.range; i++) {
+            int targetX = trap.x;
+            int targetY = trap.y;
+
+            switch (trap.direction) {
+                case LEFT:
+                    targetX = trap.x - i;
+                    break;
+                case RIGHT:
+                    targetX = trap.x + i;
+                    break;
+                case UP:
+                    targetY = trap.y - i;
+                    break;
+                case DOWN:
+                    targetY = trap.y + i;
+                    break;
+            }
+
+            if (targetX >= 0 && targetX < currentState.map[0].length &&
+                targetY >= 0 && targetY < currentState.map.length) {
+                targetCells.add(new int[]{targetX, targetY});
+            }
+        }
+
+        // Рисуем зону поражения
+        Color zoneColor = trap.attack == TrapAttack.ARROW 
+                ? new Color(255, 100, 100, 180)  // Красноватый для стрелы
+                : new Color(255, 150, 0, 200);   // Оранжевый для пламени
+
+        for (int[] cell : targetCells) {
+            int cellX = offsetX + cell[0] * cellSize;
+            int cellY = offsetY + cell[1] * cellSize;
+
+            // Рисуем подсветку клетки
+            g2d.setColor(zoneColor);
+            g2d.fillRect(cellX, cellY, cellSize, cellSize);
+
+            // Рисуем эффект выстрела
+            if (trap.attack == TrapAttack.ARROW) {
+                // Стрела - красный крест
+                g2d.setColor(Color.RED);
+                g2d.setStroke(new BasicStroke(3));
+                g2d.drawLine(cellX + cellSize/4, cellY + cellSize/2,
+                            cellX + 3*cellSize/4, cellY + cellSize/2);
+                g2d.drawLine(cellX + cellSize/2, cellY + cellSize/4,
+                            cellX + cellSize/2, cellY + 3*cellSize/4);
+            } else if (trap.attack == TrapAttack.FIRE) {
+                // Пламя - оранжевые языки
+                g2d.setColor(new Color(255, 200, 0));
+                for (int i = 0; i < 3; i++) {
+                    int flameX = cellX + cellSize/4 + i * cellSize/4;
+                    int flameY = cellY + cellSize/3;
+                    g2d.fillOval(flameX, flameY, cellSize/4, cellSize/3);
+                }
+            }
         }
     }
 

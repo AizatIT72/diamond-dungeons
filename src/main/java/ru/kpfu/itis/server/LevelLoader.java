@@ -1,7 +1,6 @@
 package ru.kpfu.itis.server;
 
-import ru.kpfu.itis.common.TileType;
-import ru.kpfu.itis.common.Enemy;
+import ru.kpfu.itis.common.*;
 
 import java.io.*;
 import java.util.*;
@@ -12,12 +11,16 @@ public class LevelLoader {
         public TileType[][] map;
         public List<int[]> startPositions;
         public List<Enemy> enemies;
+        public List<PatrolEnemy> patrolEnemies;
+        public List<Trap> traps;
         public int totalDiamonds;
 
         public GeneratedLevel(int width, int height) {
             map = new TileType[height][width];
             startPositions = new ArrayList<>();
             enemies = new ArrayList<>();
+            patrolEnemies = new ArrayList<>();
+            traps = new ArrayList<>();
             totalDiamonds = 0;
 
             // Инициализируем всю карту полом по умолчанию
@@ -145,6 +148,72 @@ public class LevelLoader {
                         level.enemies.add(new Enemy(enemyId++, Enemy.EnemyType.BAT, x, y));
                         System.out.println("Враг F (Летучая мышь): " + x + "," + y);
                         break;
+                    // Патрульные мобы
+                    case 'P':
+                        level.map[y][x] = TileType.FLOOR;
+                        PatrolEnemy patrolH = new PatrolEnemy();
+                        patrolH.x = x;
+                        patrolH.y = y;
+                        patrolH.axis = PatrolAxis.HORIZONTAL;
+                        patrolH.direction = PatrolDirection.POSITIVE;
+                        patrolH.lastMoveTime = System.currentTimeMillis();
+                        level.patrolEnemies.add(patrolH);
+                        System.out.println("Патрульный моб P (горизонтально): " + x + "," + y);
+                        break;
+                    case 'p':
+                        level.map[y][x] = TileType.FLOOR;
+                        PatrolEnemy patrolV = new PatrolEnemy();
+                        patrolV.x = x;
+                        patrolV.y = y;
+                        patrolV.axis = PatrolAxis.VERTICAL;
+                        patrolV.direction = PatrolDirection.POSITIVE;
+                        patrolV.lastMoveTime = System.currentTimeMillis();
+                        level.patrolEnemies.add(patrolV);
+                        System.out.println("Патрульный моб p (вертикально): " + x + "," + y);
+                        break;
+                    // Ловушки - стрелы (контактные)
+                    case '<':
+                        level.map[y][x] = TileType.WALL;  // Ловушка в стене
+                        level.traps.add(new Trap(x, y, TrapType.PRESSURE, TrapAttack.ARROW, Direction.LEFT));
+                        System.out.println("Ловушка < (стрела влево): " + x + "," + y);
+                        break;
+                    case '>':
+                        level.map[y][x] = TileType.WALL;
+                        level.traps.add(new Trap(x, y, TrapType.PRESSURE, TrapAttack.ARROW, Direction.RIGHT));
+                        System.out.println("Ловушка > (стрела вправо): " + x + "," + y);
+                        break;
+                    case '^':
+                        level.map[y][x] = TileType.WALL;
+                        level.traps.add(new Trap(x, y, TrapType.PRESSURE, TrapAttack.ARROW, Direction.UP));
+                        System.out.println("Ловушка ^ (стрела вверх): " + x + "," + y);
+                        break;
+                    case 'v':
+                    case 'V':
+                        level.map[y][x] = TileType.WALL;
+                        level.traps.add(new Trap(x, y, TrapType.PRESSURE, TrapAttack.ARROW, Direction.DOWN));
+                        System.out.println("Ловушка v (стрела вниз): " + x + "," + y);
+                        break;
+                    // Ловушки - пламя (таймерные)
+                    case '[':
+                        level.map[y][x] = TileType.WALL;
+                        level.traps.add(new Trap(x, y, TrapType.TIMER, TrapAttack.FIRE, Direction.LEFT));
+                        System.out.println("Ловушка [ (пламя влево): " + x + "," + y);
+                        break;
+                    case ']':
+                        level.map[y][x] = TileType.WALL;
+                        level.traps.add(new Trap(x, y, TrapType.TIMER, TrapAttack.FIRE, Direction.RIGHT));
+                        System.out.println("Ловушка ] (пламя вправо): " + x + "," + y);
+                        break;
+                    case '{':
+                        level.map[y][x] = TileType.WALL;
+                        level.traps.add(new Trap(x, y, TrapType.TIMER, TrapAttack.FIRE, Direction.UP));
+                        System.out.println("Ловушка { (пламя вверх): " + x + "," + y);
+                        break;
+                    case '}':
+                        level.map[y][x] = TileType.WALL;
+                        level.traps.add(new Trap(x, y, TrapType.TIMER, TrapAttack.FIRE, Direction.DOWN));
+                        System.out.println("Ловушка } (пламя вниз): " + x + "," + y);
+                        break;
                     case ' ':
                     case '.':
                     default:
@@ -155,6 +224,8 @@ public class LevelLoader {
 
         System.out.println("Уровень содержит: " + level.totalDiamonds + " алмазов, " +
                 level.enemies.size() + " врагов, " +
+                level.patrolEnemies.size() + " патрульных мобов, " +
+                level.traps.size() + " ловушек, " +
                 level.startPositions.size() + " стартовых позиций");
 
         return level;

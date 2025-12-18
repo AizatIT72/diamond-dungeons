@@ -38,6 +38,8 @@ public class EnemyAI {
 
     // Стратегия преследования ближайшего игрока (упрощенная)
     public static class ChaseStrategy implements AIStrategy {
+        private static final long ATTACK_COOLDOWN = 1000;  // Кулдаун атаки 1 секунда
+        
         @Override
         public void updateEnemy(Enemy enemy, TileType[][] map, List<PlayerState> players, int currentLevel) {
             if (enemy.type.speed == 0 || !enemy.isActive) return;
@@ -53,7 +55,7 @@ public class EnemyAI {
             double minDistance = Double.MAX_VALUE;
 
             for (PlayerState player : players) {
-                if (!player.isAlive) continue;
+                if (player.lives <= 0) continue;
 
                 double distance = Math.sqrt(
                         Math.pow(player.x - enemy.x, 2) +
@@ -79,9 +81,12 @@ public class EnemyAI {
                         enemy.y = newY;
                         enemy.direction = moveDir;
 
-                        // Если рядом с игроком - наносим урон
+                        // Если рядом с игроком - отнимаем жизнь (с кулдауном)
                         if (Math.abs(enemy.x - target.x) <= 1 && Math.abs(enemy.y - target.y) <= 1) {
-                            target.takeDamage(enemy.type.damage);
+                            if (currentTime - enemy.lastAttackTime >= ATTACK_COOLDOWN) {
+                                enemy.lastAttackTime = currentTime;
+                                target.loseLife();
+                            }
                         }
                     }
                 }
@@ -109,24 +114,29 @@ public class EnemyAI {
 
     // Стратегия засады - ждет пока игрок подойдет близко (упрощенная)
     public static class AmbushStrategy implements AIStrategy {
+        private static final long ATTACK_COOLDOWN = 1000;  // Кулдаун атаки 1 секунда
         private boolean isHidden = true;
 
         @Override
         public void updateEnemy(Enemy enemy, TileType[][] map, List<PlayerState> players, int currentLevel) {
             if (!enemy.isActive) return;
 
+            long currentTime = System.currentTimeMillis();
             int attackRange = 2 + (currentLevel / 4);
 
             // Проверяем, есть ли игроки в радиусе атаки
             for (PlayerState player : players) {
-                if (!player.isAlive) continue;
+                if (player.lives <= 0) continue;
 
                 int distance = Math.abs(player.x - enemy.x) + Math.abs(player.y - enemy.y);
 
                 if (distance <= attackRange) {
                     isHidden = false;
-                    // Наносим урон игроку
-                    player.takeDamage(enemy.type.damage);
+                    // Отнимаем жизнь у игрока (с кулдауном)
+                    if (currentTime - enemy.lastAttackTime >= ATTACK_COOLDOWN) {
+                        enemy.lastAttackTime = currentTime;
+                        player.loseLife();
+                    }
                     return;
                 }
             }
@@ -210,7 +220,8 @@ public class EnemyAI {
 
     // Стратегия для боссов (упрощенная)
     public static class BossStrategy implements AIStrategy {
-        private int attackCooldown = 0;
+        private static final long ATTACK_COOLDOWN = 1000;  // Кулдаун атаки 1 секунда
+        private int attackCooldownCounter = 0;
 
         @Override
         public void updateEnemy(Enemy enemy, TileType[][] map, List<PlayerState> players, int currentLevel) {
@@ -224,7 +235,7 @@ public class EnemyAI {
             List<PlayerState> targets = new ArrayList<>();
 
             for (PlayerState player : players) {
-                if (!player.isAlive) continue;
+                if (player.lives <= 0) continue;
 
                 int distance = Math.abs(player.x - enemy.x) + Math.abs(player.y - enemy.y);
                 if (distance <= detectionRange) {
@@ -233,9 +244,9 @@ public class EnemyAI {
             }
 
             if (!targets.isEmpty()) {
-                // Выбираем самого раненого игрока
+                // Выбираем игрока с наименьшим количеством жизней
                 PlayerState target = Collections.min(targets,
-                        Comparator.comparingInt(p -> p.health));
+                        Comparator.comparingInt(p -> p.lives));
 
                 // Просто двигаемся к цели (без сложного moveTowards)
                 Direction moveDir = calculateDirectionToTarget(enemy.x, enemy.y, target.x, target.y);
@@ -248,13 +259,11 @@ public class EnemyAI {
                         enemy.y = newY;
                         enemy.direction = moveDir;
 
-                        // Если рядом - наносим урон
+                        // Если рядом - отнимаем жизнь (с кулдауном)
                         if (Math.abs(enemy.x - target.x) <= 2 && Math.abs(enemy.y - target.y) <= 2) {
-                            if (attackCooldown <= 0) {
-                                target.takeDamage(enemy.type.damage * 2);
-                                attackCooldown = 3;
-                            } else {
-                                attackCooldown--;
+                            if (currentTime - enemy.lastAttackTime >= ATTACK_COOLDOWN) {
+                                enemy.lastAttackTime = currentTime;
+                                target.loseLife();
                             }
                         }
                     }

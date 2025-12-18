@@ -78,6 +78,8 @@ public class GameClient extends JFrame {
         SwingUtilities.invokeLater(() -> {
             gamePanel.updateGameState(state, playerId);
             infoPanel.updateInfo(state, playerId);
+            // Восстанавливаем фокус после обновления состояния для работы клавиатуры
+            gamePanel.requestFocusInWindow();
         });
     }
 
@@ -208,7 +210,7 @@ public class GameClient extends JFrame {
             setBackground(new Color(40, 40, 50));
             setBorder(BorderFactory.createEmptyBorder(10, 20, 10, 20));
 
-            healthLabel = createInfoLabel("❤ Здоровье: 100/100", new Color(255, 100, 100));
+            healthLabel = createInfoLabel("❤ Жизни: 3", new Color(255, 100, 100));
             diamondsLabel = createInfoLabel("💎 Алмазы: 0", new Color(100, 200, 255));
             levelLabel = createInfoLabel("📊 Уровень: 1", Color.YELLOW);
             playersLabel = createInfoLabel("👥 Игроков: 1/3", new Color(100, 255, 100));
@@ -239,7 +241,7 @@ public class GameClient extends JFrame {
             }
 
             if (player != null) {
-                healthLabel.setText("<html><nobr>❤ Здоровье: " + player.health + "/" + player.maxHealth + "</nobr></html>");
+                healthLabel.setText("<html><nobr>❤ Жизни: " + player.lives + "</nobr></html>");
                 diamondsLabel.setText("<html><nobr>💎 Алмазы: " + player.diamonds + "</nobr></html>");
             }
 

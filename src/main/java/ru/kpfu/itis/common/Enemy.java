@@ -39,6 +39,7 @@ public class Enemy implements Serializable {
     public int health;
     public Direction direction;
     public long lastMoveTime;
+    public long lastAttackTime;  // Время последней атаки для кулдауна
     public boolean isActive;
 
     public Enemy(int id, EnemyType type, int x, int y) {
@@ -49,6 +50,7 @@ public class Enemy implements Serializable {
         this.health = type.health;
         this.direction = Direction.DOWN;
         this.lastMoveTime = System.currentTimeMillis();
+        this.lastAttackTime = 0;  // Инициализируем как 0, чтобы первая атака была возможна
         this.isActive = true;
     }
 
