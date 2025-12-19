@@ -231,14 +231,14 @@ public class GamePanel extends JPanel {
         // Получаем спрайт персонажа
         BufferedImage sprite = spriteManager.getPlayerSprite(player.characterType, direction, frame);
         
-        // Увеличиваем размер персонажа в 2 раза
-        int playerSize = size * 2;
+        // Увеличиваем размер персонажа в 1.75 раза
+        int playerSize = (int)(size * 1.75);
         // Центрируем персонажа в ячейке
         int playerX = x - (playerSize - size) / 2;
         int playerY = y - (playerSize - size) / 2;
         
         if (sprite != null) {
-            // Рисуем спрайт увеличенным в 2 раза
+            // Рисуем спрайт увеличенным в 1.75 раза
             g2d.drawImage(sprite, playerX, playerY, playerSize, playerSize, null);
             
             // Желтая обводка убрана по запросу
@@ -306,12 +306,18 @@ public class GamePanel extends JPanel {
         // Получаем направление врага
         Direction direction = enemy.direction != null ? enemy.direction : Direction.DOWN;
         
+        // Увеличиваем размер моба в 1.75 раза (как у персонажей)
+        int enemySize = (int)(size * 1.75);
+        // Центрируем моба в ячейке
+        int enemyX = x - (enemySize - size) / 2;
+        int enemyY = y - (enemySize - size) / 2;
+        
         // Получаем спрайт врага
         BufferedImage sprite = spriteManager.getEnemySprite(enemy.type, direction, frame);
         
         if (sprite != null) {
-            // Рисуем спрайт
-            g2d.drawImage(sprite, x, y, size, size, null);
+            // Рисуем спрайт увеличенным в 1.75 раза
+            g2d.drawImage(sprite, enemyX, enemyY, enemySize, enemySize, null);
         } else {
             // Fallback на старый способ
             Color enemyColor;
@@ -325,26 +331,26 @@ public class GamePanel extends JPanel {
             g2d.setColor(enemyColor);
             if (enemy.type == Enemy.EnemyType.GHOST) {
                 g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.7f));
-                g2d.fillOval(x, y, size, size);
+                g2d.fillOval(enemyX, enemyY, enemySize, enemySize);
                 g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1.0f));
             } else {
-                g2d.fillRect(x, y, size, size);
+                g2d.fillRect(enemyX, enemyY, enemySize, enemySize);
             }
 
             g2d.setColor(Color.BLACK);
             g2d.setStroke(new BasicStroke(2));
             if (enemy.type == Enemy.EnemyType.GHOST) {
-                g2d.drawOval(x, y, size, size);
+                g2d.drawOval(enemyX, enemyY, enemySize, enemySize);
             } else {
-                g2d.drawRect(x, y, size, size);
+                g2d.drawRect(enemyX, enemyY, enemySize, enemySize);
             }
         }
 
         // Полоса здоровья
         if (enemy.health < enemy.type.health) {
-            int healthWidth = (int)(size * (enemy.health / (double)enemy.type.health));
+            int healthWidth = (int)(enemySize * (enemy.health / (double)enemy.type.health));
             g2d.setColor(enemy.health > enemy.type.health/2 ? Color.GREEN : Color.RED);
-            g2d.fillRect(x, y - 5, healthWidth, 3);
+            g2d.fillRect(enemyX, enemyY - 5, healthWidth, 3);
         }
     }
 
@@ -361,6 +367,12 @@ public class GamePanel extends JPanel {
             int x = offsetX + patrolEnemy.x * cellSize;
             int y = offsetY + patrolEnemy.y * cellSize;
 
+            // Увеличиваем размер патрульного моба в 1.75 раза (как у персонажей)
+            int patrolSize = (int)(cellSize * 1.75);
+            // Центрируем моба в ячейке
+            int patrolX = x - (patrolSize - cellSize) / 2;
+            int patrolY = y - (patrolSize - cellSize) / 2;
+
             // Получаем кадр анимации
             long currentTime = System.currentTimeMillis();
             int frame = spriteManager.getAnimationFrame(currentTime - animationStartTime, 2);
@@ -373,7 +385,8 @@ public class GamePanel extends JPanel {
             );
             
             if (sprite != null) {
-                g2d.drawImage(sprite, x, y, cellSize, cellSize, null);
+                // Рисуем спрайт увеличенным в 1.75 раза
+                g2d.drawImage(sprite, patrolX, patrolY, patrolSize, patrolSize, null);
             } else {
                 // Fallback на старый способ
                 double pulse = Math.sin(System.currentTimeMillis() * 0.005) * 0.1 + 0.9;

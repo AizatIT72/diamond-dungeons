@@ -126,7 +126,8 @@ public class SpriteManager {
         int[] folderNumbers = {1, 2, 3};
         
         Direction[] directions = Direction.values();
-        String[] directionPrefixes = {"D_", "S_", "U_", "S_"}; // DOWN, LEFT, UP, RIGHT (S используется для LEFT и RIGHT)
+        // Правильный маппинг: UP(0), DOWN(1), LEFT(2), RIGHT(3)
+        // U_ для UP, D_ для DOWN, S_ для LEFT, S_ (отраженный) для RIGHT
         
         for (int i = 0; i < characterTypes.length; i++) {
             String charType = characterTypes[i];
@@ -137,7 +138,29 @@ public class SpriteManager {
             
             // Пытаемся загрузить из файлов
             for (int dir = 0; dir < directions.length; dir++) {
-                String prefix = directionPrefixes[dir];
+                Direction direction = directions[dir];
+                String prefix;
+                boolean needFlip = false;
+                
+                // Правильный маппинг направлений
+                switch (direction) {
+                    case UP:
+                        prefix = "U_";
+                        break;
+                    case DOWN:
+                        prefix = "D_";
+                        break;
+                    case LEFT:
+                        prefix = "S_";
+                        break;
+                    case RIGHT:
+                        prefix = "S_";
+                        needFlip = true; // Отражаем для RIGHT
+                        break;
+                    default:
+                        prefix = "D_";
+                }
+                
                 String walkPath = String.format("sprites/players/%d/%sWalk.png", folderNum, prefix);
                 
                 BufferedImage[] walkFrames = SpriteSheetLoader.loadAndSplitAuto(walkPath);
@@ -147,7 +170,7 @@ public class SpriteManager {
                     for (int frame = 0; frame < Math.min(ANIMATION_FRAMES, walkFrames.length); frame++) {
                         BufferedImage frameImg = walkFrames[frame];
                         // Для направления RIGHT отражаем спрайт S_ по горизонтали
-                        if (dir == 3 && prefix.equals("S_")) { // RIGHT
+                        if (needFlip) {
                             frameImg = flipImageHorizontally(frameImg);
                         }
                         sprites[dir][frame] = frameImg;
@@ -156,7 +179,7 @@ public class SpriteManager {
                     if (walkFrames.length < ANIMATION_FRAMES) {
                         for (int frame = walkFrames.length; frame < ANIMATION_FRAMES; frame++) {
                             BufferedImage lastFrame = walkFrames[walkFrames.length - 1];
-                            if (dir == 3 && prefix.equals("S_")) {
+                            if (needFlip) {
                                 lastFrame = flipImageHorizontally(lastFrame);
                             }
                             sprites[dir][frame] = lastFrame;
@@ -184,7 +207,7 @@ public class SpriteManager {
         int[] folderNumbers = {1, 2, 3};
         
         Direction[] directions = Direction.values();
-        String[] directionPrefixes = {"D_", "S_", "U_", "S_"}; // DOWN, LEFT, UP, RIGHT
+        // Правильный маппинг: UP(0), DOWN(1), LEFT(2), RIGHT(3)
         
         for (int i = 0; i < types.length; i++) {
             Enemy.EnemyType type = types[i];
@@ -196,7 +219,29 @@ public class SpriteManager {
             
             // Пытаемся загрузить из файлов
             for (int dir = 0; dir < directions.length; dir++) {
-                String prefix = directionPrefixes[dir];
+                Direction direction = directions[dir];
+                String prefix;
+                boolean needFlip = false;
+                
+                // Правильный маппинг направлений
+                switch (direction) {
+                    case UP:
+                        prefix = "U_";
+                        break;
+                    case DOWN:
+                        prefix = "D_";
+                        break;
+                    case LEFT:
+                        prefix = "S_";
+                        break;
+                    case RIGHT:
+                        prefix = "S_";
+                        needFlip = true; // Отражаем для RIGHT
+                        break;
+                    default:
+                        prefix = "D_";
+                }
+                
                 String walkPath = String.format("sprites/enemies/%d/%sWalk.png", folderNum, prefix);
                 
                 BufferedImage[] walkFrames = SpriteSheetLoader.loadAndSplitAuto(walkPath);
@@ -205,7 +250,7 @@ public class SpriteManager {
                     for (int frame = 0; frame < Math.min(ANIMATION_FRAMES, walkFrames.length); frame++) {
                         BufferedImage frameImg = walkFrames[frame];
                         // Для направления RIGHT отражаем спрайт S_ по горизонтали
-                        if (dir == 3 && prefix.equals("S_")) { // RIGHT
+                        if (needFlip) {
                             frameImg = flipImageHorizontally(frameImg);
                         }
                         sprites[dir][frame] = frameImg;
@@ -213,7 +258,7 @@ public class SpriteManager {
                     if (walkFrames.length < ANIMATION_FRAMES) {
                         for (int frame = walkFrames.length; frame < ANIMATION_FRAMES; frame++) {
                             BufferedImage lastFrame = walkFrames[walkFrames.length - 1];
-                            if (dir == 3 && prefix.equals("S_")) {
+                            if (needFlip) {
                                 lastFrame = flipImageHorizontally(lastFrame);
                             }
                             sprites[dir][frame] = lastFrame;
@@ -221,6 +266,7 @@ public class SpriteManager {
                     }
                 } else {
                     // Fallback на программную генерацию
+                    System.err.println("Не удалось загрузить спрайты для " + type + " направление " + direction + " из " + walkPath);
                     for (int frame = 0; frame < ANIMATION_FRAMES; frame++) {
                         sprites[dir][frame] = createEnemySprite(type, directions[dir], frame);
                     }
@@ -228,7 +274,9 @@ public class SpriteManager {
             }
             
             if (loadedFromFile) {
-                System.out.println("Загружены спрайты врага: " + type);
+                System.out.println("Загружены спрайты врага: " + type + " (все направления)");
+            } else {
+                System.err.println("ВНИМАНИЕ: Спрайты для врага " + type + " не загружены из файлов, используется программная генерация");
             }
             
             enemySprites.put(type, sprites);
@@ -242,33 +290,53 @@ public class SpriteManager {
         patrolEnemySprites = new BufferedImage[2][2][ANIMATION_FRAMES];
         
         // Используем врага из папки 4 для патрульных мобов
-        String[] axisDirs = {"S_", "D_"}; // S для горизонтального, D для вертикального
+        // HORIZONTAL + POSITIVE = вправо (S_ отраженный)
+        // HORIZONTAL + NEGATIVE = влево (S_)
+        // VERTICAL + POSITIVE = вниз (D_)
+        // VERTICAL + NEGATIVE = вверх (U_)
         
         for (int axis = 0; axis < 2; axis++) {
-            String prefix = axisDirs[axis];
-            String walkPath = String.format("sprites/enemies/4/%sWalk.png", prefix);
-            
-            BufferedImage[] walkFrames = SpriteSheetLoader.loadAndSplitAuto(walkPath);
-            boolean loadedFromFile = false;
-            
-            if (walkFrames != null && walkFrames.length > 0) {
-                loadedFromFile = true;
-                // Для обоих направлений используем те же кадры
-                for (int dir = 0; dir < 2; dir++) {
+            for (int dir = 0; dir < 2; dir++) {
+                String prefix;
+                boolean needFlip = false;
+                
+                if (axis == 0) { // HORIZONTAL
+                    prefix = "S_";
+                    if (dir == 0) { // POSITIVE (вправо)
+                        needFlip = true;
+                    } // NEGATIVE (влево) - без отражения
+                } else { // VERTICAL
+                    if (dir == 0) { // POSITIVE (вниз)
+                        prefix = "D_";
+                    } else { // NEGATIVE (вверх)
+                        prefix = "U_";
+                    }
+                }
+                
+                String walkPath = String.format("sprites/enemies/4/%sWalk.png", prefix);
+                BufferedImage[] walkFrames = SpriteSheetLoader.loadAndSplitAuto(walkPath);
+                boolean loadedFromFile = false;
+                
+                if (walkFrames != null && walkFrames.length > 0) {
+                    loadedFromFile = true;
                     for (int frame = 0; frame < Math.min(ANIMATION_FRAMES, walkFrames.length); frame++) {
-                        patrolEnemySprites[axis][dir][frame] = walkFrames[frame];
+                        BufferedImage frameImg = walkFrames[frame];
+                        if (needFlip) {
+                            frameImg = flipImageHorizontally(frameImg);
+                        }
+                        patrolEnemySprites[axis][dir][frame] = frameImg;
                     }
                     if (walkFrames.length < ANIMATION_FRAMES) {
                         for (int frame = walkFrames.length; frame < ANIMATION_FRAMES; frame++) {
-                            patrolEnemySprites[axis][dir][frame] = walkFrames[walkFrames.length - 1];
+                            BufferedImage lastFrame = walkFrames[walkFrames.length - 1];
+                            if (needFlip) {
+                                lastFrame = flipImageHorizontally(lastFrame);
+                            }
+                            patrolEnemySprites[axis][dir][frame] = lastFrame;
                         }
                     }
-                }
-            }
-            
-            if (!loadedFromFile) {
-                // Fallback на программную генерацию
-                for (int dir = 0; dir < 2; dir++) {
+                } else {
+                    // Fallback на программную генерацию
                     for (int frame = 0; frame < ANIMATION_FRAMES; frame++) {
                         patrolEnemySprites[axis][dir][frame] = createPatrolEnemySprite(axis == 0, dir == 0, frame);
                     }
