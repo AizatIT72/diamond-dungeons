@@ -306,8 +306,8 @@ public class GamePanel extends JPanel {
         // Получаем направление врага
         Direction direction = enemy.direction != null ? enemy.direction : Direction.DOWN;
         
-        // Увеличиваем размер моба в 1.75 раза (как у персонажей)
-        int enemySize = (int)(size * 1.75);
+        // Увеличиваем размер моба в 2 раза (как у персонажей)
+        int enemySize = (int)(size * 2);
         // Центрируем моба в ячейке
         int enemyX = x - (enemySize - size) / 2;
         int enemyY = y - (enemySize - size) / 2;
@@ -316,7 +316,7 @@ public class GamePanel extends JPanel {
         BufferedImage sprite = spriteManager.getEnemySprite(enemy.type, direction, frame);
         
         if (sprite != null) {
-            // Рисуем спрайт увеличенным в 1.75 раза
+            // Рисуем спрайт увеличенным в 2 раза
             g2d.drawImage(sprite, enemyX, enemyY, enemySize, enemySize, null);
         } else {
             // Fallback на старый способ
@@ -368,7 +368,7 @@ public class GamePanel extends JPanel {
             int y = offsetY + patrolEnemy.y * cellSize;
 
             // Увеличиваем размер патрульного моба в 1.75 раза (как у персонажей)
-            int patrolSize = (int)(cellSize * 1.75);
+            int patrolSize = (int)(cellSize * 2);
             // Центрируем моба в ячейке
             int patrolX = x - (patrolSize - cellSize) / 2;
             int patrolY = y - (patrolSize - cellSize) / 2;
