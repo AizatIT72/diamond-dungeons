@@ -22,11 +22,15 @@ public class GameWorld {
     private int collectedDiamondsCount = 0;
     private boolean levelComplete = false;
     private long levelStartTime;
-    private boolean isRestarting = false;  
+    private boolean isRestarting = false;
     private java.util.function.Consumer<Message> broadcastCallback;
 
-    private static final long PATROL_ENEMY_MOVE_DELAY = 600;
+    // Новые поля для перехода между уровнями
+    private boolean isLevelTransitioning = false;
+    private long levelTransitionStartTime = 0;
+    private static final long LEVEL_TRANSITION_DURATION = 2000; // 2 секунды на переход
 
+    private static final long PATROL_ENEMY_MOVE_DELAY = 600;
     private static final long ENEMY_ATTACK_COOLDOWN = 1000;
 
     public GameWorld() {
@@ -35,7 +39,8 @@ public class GameWorld {
     }
 
     public void loadLevel(int level) {
-        isRestarting = false;  
+        isRestarting = false;
+        isLevelTransitioning = false; // Сбрасываем флаг перехода
         currentLevel = level;
         GeneratedLevel generated = LevelLoader.loadLevel(level);
 
@@ -52,14 +57,14 @@ public class GameWorld {
         if (generated.patrolEnemies != null && !generated.patrolEnemies.isEmpty()) {
             this.patrolEnemies.addAll(generated.patrolEnemies);
         } else {
-            this.initPatrolEnemies();  
+            this.initPatrolEnemies();
         }
         this.traps.clear();
 
         if (generated.traps != null && !generated.traps.isEmpty()) {
             this.traps.addAll(generated.traps);
         } else {
-            this.initTraps();  
+            this.initTraps();
         }
         this.totalDiamonds = generated.totalDiamonds;
         this.collectedDiamondsCount = 0;
@@ -71,8 +76,8 @@ public class GameWorld {
         List<PlayerState> playerList = new ArrayList<>(players.values());
 
         for (PlayerState player : playerList) {
-
             player.diamonds = 0;
+            player.hasKey = false; // Сбрасываем ключ при загрузке нового уровня
 
             if (startIndex < generated.startPositions.size()) {
                 int[] startPos = generated.startPositions.get(startIndex);
@@ -81,20 +86,70 @@ public class GameWorld {
                     player.x = startPos[0];
                     player.y = startPos[1];
                     player.isAlive = true;
-                    player.lives = 3;  
-                    player.hasKey = false;
+                    player.lives = 3;
                     startIndex++;
                 } else {
-
                     findFreePosition(player);
                 }
             } else {
-
                 findFreePosition(player);
             }
         }
 
         logger.info("Уровень {} загружен. Алмазов: {}", level, totalDiamonds);
+    }
+
+    // Новый метод: проверка перехода на следующий уровень
+    private void checkLevelTransition() {
+        if (isLevelTransitioning || levelComplete) return;
+
+        // Проверяем, собраны ли все алмазы
+        if (collectedDiamondsCount < totalDiamonds) {
+            return;
+        }
+
+        // Проверяем, стоят ли все живые игроки на дверях (TileType.DOOR)
+        boolean allPlayersOnDoor = true;
+        int alivePlayers = 0;
+
+        for (PlayerState player : players.values()) {
+            if (player.lives > 0) { // Только живые игроки
+                alivePlayers++;
+
+                // Проверяем, стоит ли игрок на двери
+                TileType currentTile = map[player.y][player.x];
+                if (currentTile != TileType.DOOR) {
+                    allPlayersOnDoor = false;
+                    break;
+                }
+            }
+        }
+
+        // Если есть живые игроки и все они на дверях, то начинаем переход
+        if (alivePlayers > 0 && allPlayersOnDoor && !isRestarting) {
+            startLevelTransition();
+        }
+    }
+
+    // Новый метод: начало перехода на следующий уровень
+    private void startLevelTransition() {
+        isLevelTransitioning = true;
+        levelTransitionStartTime = System.currentTimeMillis();
+        levelComplete = true;
+
+        broadcast(new Message(Message.ACTION, 0,
+                "🎉 Все игроки в дверях! Переход на следующий уровень через 2 секунды..."));
+
+        // Запускаем таймер для перехода
+        new Timer().schedule(new TimerTask() {
+            @Override
+            public void run() {
+                loadLevel(currentLevel + 1);
+                isLevelTransitioning = false;
+                broadcast(new Message(Message.ACTION, 0,
+                        "🌌 Уровень " + currentLevel + " загружен!"));
+            }
+        }, LEVEL_TRANSITION_DURATION);
     }
 
     private boolean isPositionWalkable(int x, int y) {
@@ -105,11 +160,9 @@ public class GameWorld {
     }
 
     private void findFreePosition(PlayerState player) {
-
         GeneratedLevel generated = LevelLoader.loadLevel(currentLevel);
         if (generated != null && !generated.startPositions.isEmpty()) {
             for (int[] startPos : generated.startPositions) {
-
                 for (int dx = -2; dx <= 2; dx++) {
                     for (int dy = -2; dy <= 2; dy++) {
                         int x = startPos[0] + dx;
@@ -142,11 +195,8 @@ public class GameWorld {
 
     public synchronized PlayerState addPlayer(int id, String name, String characterType) {
         PlayerState player = new PlayerState(id, name, characterType);
-
         player.lives = 3;
-
         findFreePosition(player);
-
         players.put(id, player);
 
         if (map[player.y][player.x] != TileType.FLOOR) {
@@ -158,7 +208,6 @@ public class GameWorld {
 
     private boolean isPositionOccupied(int x, int y) {
         for (PlayerState p : players.values()) {
-
             if (p.x == x && p.y == y && p.lives > 0) return true;
         }
         for (Enemy e : enemies) {
@@ -205,7 +254,6 @@ public class GameWorld {
                 break;
 
             case TRAP:
-
                 player.loseLife();
                 broadcast(new Message(Message.ACTION, player.id,
                         player.name + " попал в ловушку! Осталось жизней: " + player.lives));
@@ -224,18 +272,17 @@ public class GameWorld {
                 break;
 
             case CHEST:
-                player.hasKey = true;
+                // Убираем логику с ключом, так как он не нужен
                 map[player.y][player.x] = TileType.FLOOR;
                 broadcast(new Message(Message.ACTION, player.id,
-                        player.name + " нашел ключ!"));
+                        player.name + " нашел сундук!"));
                 break;
 
             case DOOR:
-                if (player.hasKey && collectedDiamondsCount >= totalDiamonds) {
-                    levelComplete = true;
-                    broadcast(new Message(Message.ACTION, 0,
-                            "Выход открыт! Все алмазы собраны!"));
-                }
+                // Просто проверяем переход, ключ не нужен
+                broadcast(new Message(Message.ACTION, player.id,
+                        player.name + " у двери!"));
+                checkLevelTransition(); // Проверяем, готовы ли все к переходу
                 break;
         }
     }
@@ -250,7 +297,7 @@ public class GameWorld {
         map[y][x] = TileType.FLOOR;
 
         if (player.characterType.contains("Зеленый")) {
-            player.addDiamond(); 
+            player.addDiamond();
             broadcast(new Message(Message.ACTION, player.id,
                     player.name + " собрал 2 алмаза благодаря своей ловкости!"));
         } else {
@@ -260,7 +307,9 @@ public class GameWorld {
 
         if (collectedDiamondsCount >= totalDiamonds) {
             broadcast(new Message(Message.ACTION, 0,
-                    "Все алмазы собраны! Найдите выход и используйте ключ."));
+                    "💎 Все алмазы собраны! Идите к дверям!"));
+            // Теперь проверяем, может быть игроки уже на дверях
+            checkLevelTransition();
         }
     }
 
@@ -269,7 +318,6 @@ public class GameWorld {
 
         for (Enemy enemy : enemies) {
             if (enemy.isActive && enemy.x == player.x && enemy.y == player.y) {
-
                 if (now - enemy.lastAttackTime >= ENEMY_ATTACK_COOLDOWN) {
                     enemy.lastAttackTime = now;
 
@@ -298,7 +346,6 @@ public class GameWorld {
 
         for (PatrolEnemy patrolEnemy : patrolEnemies) {
             if (patrolEnemy.x == player.x && patrolEnemy.y == player.y) {
-
                 if (now - patrolEnemy.lastAttackTime >= ENEMY_ATTACK_COOLDOWN) {
                     patrolEnemy.lastAttackTime = now;
 
@@ -362,8 +409,8 @@ public class GameWorld {
                     break;
             }
 
-            if (targetX >= 0 && targetX < map[0].length && 
-                targetY >= 0 && targetY < map.length) {
+            if (targetX >= 0 && targetX < map[0].length &&
+                    targetY >= 0 && targetY < map.length) {
                 cells.add(new int[]{targetX, targetY});
             }
         }
@@ -375,7 +422,6 @@ public class GameWorld {
         long now = System.currentTimeMillis();
 
         for (Trap trap : traps) {
-
             if (trap.active) {
                 trap.deactivate(now);
             }
@@ -392,12 +438,10 @@ public class GameWorld {
         long now = System.currentTimeMillis();
 
         for (Trap trap : traps) {
-
             if (trap.type == TrapType.PRESSURE && !trap.active) {
                 List<int[]> targetCells = getTargetCells(trap);
                 for (int[] cell : targetCells) {
                     if (cell[0] == player.x && cell[1] == player.y) {
-
                         trap.activate(now);
                         break;
                     }
@@ -408,7 +452,6 @@ public class GameWorld {
                 List<int[]> targetCells = getTargetCells(trap);
                 for (int[] cell : targetCells) {
                     if (cell[0] == player.x && cell[1] == player.y) {
-
                         if (now - trap.lastDamageTime >= Trap.DAMAGE_COOLDOWN) {
                             trap.lastDamageTime = now;
 
@@ -427,7 +470,7 @@ public class GameWorld {
                                 }, 3000);
                             }
                         }
-                        return;  
+                        return;
                     }
                 }
             }
@@ -435,7 +478,6 @@ public class GameWorld {
     }
 
     private synchronized void restartLevel() {
-
         if (isRestarting) {
             return;
         }
@@ -445,7 +487,6 @@ public class GameWorld {
                 "Уровень перезапущен! Все игроки начинают заново."));
 
         loadLevel(currentLevel);
-
         isRestarting = false;
     }
 
@@ -460,8 +501,10 @@ public class GameWorld {
 
         updatePatrolEnemies();
         updateTraps();
-
         checkTrapsAfterUpdate();
+
+        // Также проверяем переход после обновления врагов (на случай, если игроки уже на дверях)
+        checkLevelTransition();
     }
 
     private void checkTrapsAfterUpdate() {
@@ -473,7 +516,6 @@ public class GameWorld {
     }
 
     private void initPatrolEnemies() {
-
         if (map != null && map.length > 0 && map[0].length > 0) {
             int centerX = map[0].length / 2;
             int centerY = map.length / 2;
@@ -526,7 +568,6 @@ public class GameWorld {
         int nextY = patrolEnemy.y + dy;
 
         if (!isValidMove(nextX, nextY)) {
-
             patrolEnemy.direction = patrolEnemy.direction == PatrolDirection.POSITIVE
                     ? PatrolDirection.NEGATIVE
                     : PatrolDirection.POSITIVE;
@@ -542,11 +583,9 @@ public class GameWorld {
 
         for (PatrolEnemy patrolEnemy : patrolEnemies) {
             for (PlayerState player : players.values()) {
-
                 if (player.lives <= 0) continue;
 
                 if (player.x == patrolEnemy.x && player.y == patrolEnemy.y) {
-
                     if (now - patrolEnemy.lastAttackTime >= ENEMY_ATTACK_COOLDOWN) {
                         patrolEnemy.lastAttackTime = now;
 
@@ -585,7 +624,9 @@ public class GameWorld {
                 totalDiamonds,
                 currentLevel,
                 levelComplete,
-                levelStartTime
+                levelStartTime,
+                isLevelTransitioning,
+                levelTransitionStartTime
         );
     }
 
@@ -600,7 +641,6 @@ public class GameWorld {
     }
 
     public static class GameState implements java.io.Serializable {
-
         private static final long serialVersionUID = 1L;
 
         public final List<PlayerState> players;
@@ -613,11 +653,14 @@ public class GameWorld {
         public final int currentLevel;
         public final boolean levelComplete;
         public final long levelStartTime;
+        public final boolean isLevelTransitioning;
+        public final long levelTransitionStartTime;
 
-        public GameState(List<PlayerState> players, List<Enemy> enemies, List<PatrolEnemy> patrolEnemies, 
+        public GameState(List<PlayerState> players, List<Enemy> enemies, List<PatrolEnemy> patrolEnemies,
                          List<Trap> traps, TileType[][] map,
                          int collectedDiamonds, int totalDiamonds, int currentLevel,
-                         boolean levelComplete, long levelStartTime) {
+                         boolean levelComplete, long levelStartTime,
+                         boolean isLevelTransitioning, long levelTransitionStartTime) {
             this.players = players;
             this.enemies = enemies;
             this.patrolEnemies = patrolEnemies;
@@ -628,6 +671,8 @@ public class GameWorld {
             this.currentLevel = currentLevel;
             this.levelComplete = levelComplete;
             this.levelStartTime = levelStartTime;
+            this.isLevelTransitioning = isLevelTransitioning;
+            this.levelTransitionStartTime = levelTransitionStartTime;
         }
     }
 }

@@ -5,10 +5,13 @@ import ru.kpfu.itis.server.GameWorld;
 
 import javax.swing.*;
 import java.awt.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
 
 public class GamePanel extends JPanel {
     private GameWorld.GameState currentState;
     private int currentPlayerId = -1;
+    private Timer transitionTimer;
 
     public GamePanel() {
         setBackground(new Color(20, 20, 30));
@@ -19,7 +22,28 @@ public class GamePanel extends JPanel {
     public void updateGameState(GameWorld.GameState state, int playerId) {
         this.currentState = state;
         this.currentPlayerId = playerId;
-        repaint();
+
+        // Если идет переход, перерисовываем чаще для анимации
+        if (state != null && state.isLevelTransitioning) {
+            repaint();
+            // Запускаем быструю перерисовку для анимации
+            if (transitionTimer != null) {
+                transitionTimer.stop();
+            }
+            transitionTimer = new Timer(50, new ActionListener() {
+                @Override
+                public void actionPerformed(ActionEvent e) {
+                    repaint();
+                }
+            });
+            transitionTimer.start();
+        } else {
+            if (transitionTimer != null) {
+                transitionTimer.stop();
+                transitionTimer = null;
+            }
+            repaint();
+        }
     }
 
     @Override
@@ -39,6 +63,11 @@ public class GamePanel extends JPanel {
         drawPatrolEnemies(g2d);
         drawTraps(g2d);
         drawUI(g2d);
+
+        // Добавляем затемнение при переходе между уровнями
+        if (currentState.isLevelTransitioning) {
+            drawLevelTransition(g2d);
+        }
     }
 
     private void drawLoadingScreen(Graphics2D g2d) {
@@ -49,6 +78,37 @@ public class GamePanel extends JPanel {
         int x = (getWidth() - fm.stringWidth(text)) / 2;
         int y = getHeight() / 2;
         g2d.drawString(text, x, y);
+    }
+
+    // Новый метод: отрисовка перехода между уровнями
+    private void drawLevelTransition(Graphics2D g2d) {
+        long currentTime = System.currentTimeMillis();
+        long elapsed = currentTime - currentState.levelTransitionStartTime;
+        float progress = Math.min(1.0f, elapsed / 2000.0f); // 2 секунды
+
+        // Плавное затемнение и осветление
+        float alpha;
+        if (progress < 0.5f) {
+            // Затемнение (0 -> 0.8)
+            alpha = progress * 1.6f;
+        } else {
+            // Осветление (0.8 -> 0)
+            alpha = (1.0f - progress) * 1.6f;
+        }
+
+        g2d.setColor(new Color(0, 0, 0, (int)(alpha * 255)));
+        g2d.fillRect(0, 0, getWidth(), getHeight());
+
+        // Отображаем сообщение о переходе
+        if (progress < 0.5f) {
+            g2d.setColor(Color.WHITE);
+            g2d.setFont(new Font("Arial", Font.BOLD, 24));
+            String text = "🌌 Переход на уровень " + (currentState.currentLevel + 1) + "...";
+            FontMetrics fm = g2d.getFontMetrics();
+            int x = (getWidth() - fm.stringWidth(text)) / 2;
+            int y = getHeight() / 2;
+            g2d.drawString(text, x, y);
+        }
     }
 
     private void drawGameWorld(Graphics2D g2d) {
@@ -62,7 +122,6 @@ public class GamePanel extends JPanel {
             for (int x = 0; x < currentState.map[y].length; x++) {
                 TileType tile = currentState.map[y][x];
                 if (tile == null) {
-
                     g2d.setColor(new Color(60, 60, 60));
                     g2d.fillRect(offsetX + x * cellSize, offsetY + y * cellSize, cellSize, cellSize);
                 } else {
@@ -255,24 +314,20 @@ public class GamePanel extends JPanel {
 
             if (patrolEnemy.axis == PatrolAxis.HORIZONTAL) {
                 if (patrolEnemy.direction == PatrolDirection.POSITIVE) {
-
                     g2d.drawLine(centerX, centerY, centerX + size / 4, centerY);
                     g2d.drawLine(centerX + size / 4, centerY, centerX + size / 6, centerY - size / 8);
                     g2d.drawLine(centerX + size / 4, centerY, centerX + size / 6, centerY + size / 8);
                 } else {
-
                     g2d.drawLine(centerX, centerY, centerX - size / 4, centerY);
                     g2d.drawLine(centerX - size / 4, centerY, centerX - size / 6, centerY - size / 8);
                     g2d.drawLine(centerX - size / 4, centerY, centerX - size / 6, centerY + size / 8);
                 }
             } else {
                 if (patrolEnemy.direction == PatrolDirection.POSITIVE) {
-
                     g2d.drawLine(centerX, centerY, centerX, centerY + size / 4);
                     g2d.drawLine(centerX, centerY + size / 4, centerX - size / 8, centerY + size / 6);
                     g2d.drawLine(centerX, centerY + size / 4, centerX + size / 8, centerY + size / 6);
                 } else {
-
                     g2d.drawLine(centerX, centerY, centerX, centerY - size / 4);
                     g2d.drawLine(centerX, centerY - size / 4, centerX - size / 8, centerY - size / 6);
                     g2d.drawLine(centerX, centerY - size / 4, centerX + size / 8, centerY - size / 6);
@@ -303,7 +358,6 @@ public class GamePanel extends JPanel {
     }
 
     private void drawTrap(Graphics2D g2d, Trap trap, int x, int y, int cellSize) {
-
         int trapDrawX = x;
         int trapDrawY = y;
         int trapWidth = cellSize / 4;
@@ -311,29 +365,24 @@ public class GamePanel extends JPanel {
 
         switch (trap.direction) {
             case LEFT:
-
                 trapDrawX = x + cellSize - trapWidth - 2;
                 trapDrawY = y + (cellSize - trapHeight) / 2;
                 break;
             case RIGHT:
-
                 trapDrawX = x + 2;
                 trapDrawY = y + (cellSize - trapHeight) / 2;
                 break;
             case UP:
-
                 trapDrawX = x + (cellSize - trapWidth) / 2;
                 trapDrawY = y + cellSize - trapHeight - 2;
                 break;
             case DOWN:
-
                 trapDrawX = x + (cellSize - trapWidth) / 2;
                 trapDrawY = y + 2;
                 break;
         }
 
         if (trap.attack == TrapAttack.ARROW) {
-
             g2d.setColor(new Color(80, 80, 80));
             g2d.fillRect(trapDrawX, trapDrawY, trapWidth, trapHeight);
             g2d.setColor(Color.BLACK);
@@ -346,11 +395,9 @@ public class GamePanel extends JPanel {
                 g2d.fillOval(centerX - 3, centerY - 3, 6, 6);
             }
         } else if (trap.attack == TrapAttack.FIRE) {
-
             if (trap.active) {
                 g2d.setColor(new Color(255, 100, 0));
             } else {
-
                 double pulse = Math.sin(System.currentTimeMillis() * 0.01) * 0.3 + 0.7;
                 int alpha = (int) (255 * pulse);
                 g2d.setColor(new Color(255, 150, 0, alpha));
@@ -362,7 +409,6 @@ public class GamePanel extends JPanel {
     }
 
     private void drawTrapZone(Graphics2D g2d, Trap trap, int offsetX, int offsetY, int cellSize) {
-
         java.util.List<int[]> targetCells = new java.util.ArrayList<>();
         for (int i = 1; i <= trap.range; i++) {
             int targetX = trap.x;
@@ -384,14 +430,14 @@ public class GamePanel extends JPanel {
             }
 
             if (targetX >= 0 && targetX < currentState.map[0].length &&
-                targetY >= 0 && targetY < currentState.map.length) {
+                    targetY >= 0 && targetY < currentState.map.length) {
                 targetCells.add(new int[]{targetX, targetY});
             }
         }
 
-        Color zoneColor = trap.attack == TrapAttack.ARROW 
-                ? new Color(255, 100, 100, 180)  
-                : new Color(255, 150, 0, 200);   
+        Color zoneColor = trap.attack == TrapAttack.ARROW
+                ? new Color(255, 100, 100, 180)
+                : new Color(255, 150, 0, 200);
 
         for (int[] cell : targetCells) {
             int cellX = offsetX + cell[0] * cellSize;
@@ -401,15 +447,13 @@ public class GamePanel extends JPanel {
             g2d.fillRect(cellX, cellY, cellSize, cellSize);
 
             if (trap.attack == TrapAttack.ARROW) {
-
                 g2d.setColor(Color.RED);
                 g2d.setStroke(new BasicStroke(3));
                 g2d.drawLine(cellX + cellSize/4, cellY + cellSize/2,
-                            cellX + 3*cellSize/4, cellY + cellSize/2);
+                        cellX + 3*cellSize/4, cellY + cellSize/2);
                 g2d.drawLine(cellX + cellSize/2, cellY + cellSize/4,
-                            cellX + cellSize/2, cellY + 3*cellSize/4);
+                        cellX + cellSize/2, cellY + 3*cellSize/4);
             } else if (trap.attack == TrapAttack.FIRE) {
-
                 g2d.setColor(new Color(255, 200, 0));
                 for (int i = 0; i < 3; i++) {
                     int flameX = cellX + cellSize/4 + i * cellSize/4;
@@ -421,7 +465,6 @@ public class GamePanel extends JPanel {
     }
 
     private void drawUI(Graphics2D g2d) {
-
         if (currentPlayerId != -1) {
             g2d.setColor(new Color(255, 255, 255, 150));
             g2d.setFont(new Font("Arial", Font.PLAIN, 12));
