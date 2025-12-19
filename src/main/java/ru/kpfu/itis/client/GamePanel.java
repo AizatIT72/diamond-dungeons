@@ -7,16 +7,27 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.image.BufferedImage;
 
 public class GamePanel extends JPanel {
     private GameWorld.GameState currentState;
     private int currentPlayerId = -1;
     private Timer transitionTimer;
+    private Timer animationTimer;
+    private SpriteManager spriteManager;
+    private long animationStartTime;
 
     public GamePanel() {
         setBackground(new Color(20, 20, 30));
         setPreferredSize(new Dimension(800, 600));
         setFocusable(true);
+        
+        spriteManager = SpriteManager.getInstance();
+        animationStartTime = System.currentTimeMillis();
+        
+        // Таймер для анимации
+        animationTimer = new Timer(100, e -> repaint());
+        animationTimer.start();
     }
 
     public void updateGameState(GameWorld.GameState state, int playerId) {
@@ -135,52 +146,63 @@ public class GamePanel extends JPanel {
     }
 
     private void drawTile(Graphics2D g2d, TileType tile, int x, int y, int size) {
-        switch (tile) {
-            case WALL:
-                g2d.setColor(new Color(100, 70, 40));
-                g2d.fillRect(x, y, size, size);
-                g2d.setColor(new Color(80, 50, 30));
-                g2d.drawRect(x, y, size, size);
-                break;
-            case DIAMOND:
-                g2d.setColor(new Color(60, 60, 60));
-                g2d.fillRect(x, y, size, size);
-                g2d.setColor(new Color(100, 200, 255));
-                Polygon diamond = new Polygon();
-                diamond.addPoint(x + size/2, y + size/4);
-                diamond.addPoint(x + 3*size/4, y + size/2);
-                diamond.addPoint(x + size/2, y + 3*size/4);
-                diamond.addPoint(x + size/4, y + size/2);
-                g2d.fill(diamond);
-                break;
-            case TRAP:
-                g2d.setColor(new Color(60, 60, 60));
-                g2d.fillRect(x, y, size, size);
-                g2d.setColor(new Color(255, 50, 50));
-                g2d.fillOval(x + size/4, y + size/4, size/2, size/2);
-                break;
-            case CHEST:
-                g2d.setColor(new Color(60, 60, 60));
-                g2d.fillRect(x, y, size, size);
-                g2d.setColor(new Color(150, 100, 50));
-                g2d.fillRect(x + size/4, y + size/4, size/2, size/2);
-                g2d.setColor(new Color(200, 150, 100));
-                g2d.fillRect(x + size/3, y + size/3, size/3, size/6);
-                break;
-            case DOOR:
-                boolean unlocked = currentState != null && currentState.collectedDiamonds >= currentState.totalDiamonds;
-                g2d.setColor(new Color(60, 60, 60));
-                g2d.fillRect(x, y, size, size);
-                g2d.setColor(unlocked ? new Color(100, 200, 100) : new Color(150, 100, 50));
-                g2d.fillRect(x + size/4, y, size/2, size);
-                g2d.setColor(Color.BLACK);
-                g2d.drawRect(x + size/4, y, size/2, size);
-                break;
-            default:
-                g2d.setColor(new Color(60, 60, 60));
-                g2d.fillRect(x, y, size, size);
-                g2d.setColor(new Color(80, 80, 80));
-                g2d.drawRect(x, y, size, size);
+        BufferedImage sprite = spriteManager.getTileSprite(tile);
+        
+        if (sprite != null) {
+            // Масштабируем спрайт под размер ячейки
+            g2d.drawImage(sprite, x, y, size, size, null);
+        } else {
+            // Fallback на старый способ отрисовки
+            switch (tile) {
+                case WALL:
+                    g2d.setColor(new Color(100, 70, 40));
+                    g2d.fillRect(x, y, size, size);
+                    g2d.setColor(new Color(80, 50, 30));
+                    g2d.drawRect(x, y, size, size);
+                    break;
+                case DIAMOND:
+                    BufferedImage diamondSprite = spriteManager.getTileSprite(TileType.DIAMOND);
+                    if (diamondSprite != null) {
+                        g2d.drawImage(diamondSprite, x, y, size, size, null);
+                    } else {
+                        g2d.setColor(new Color(60, 60, 60));
+                        g2d.fillRect(x, y, size, size);
+                        g2d.setColor(new Color(100, 200, 255));
+                        Polygon diamond = new Polygon();
+                        diamond.addPoint(x + size/2, y + size/4);
+                        diamond.addPoint(x + 3*size/4, y + size/2);
+                        diamond.addPoint(x + size/2, y + 3*size/4);
+                        diamond.addPoint(x + size/4, y + size/2);
+                        g2d.fill(diamond);
+                    }
+                    break;
+                case DOOR:
+                    boolean unlocked = currentState != null && currentState.collectedDiamonds >= currentState.totalDiamonds;
+                    BufferedImage doorSprite = spriteManager.getTileSprite(TileType.DOOR);
+                    if (doorSprite != null) {
+                        g2d.drawImage(doorSprite, x, y, size, size, null);
+                        if (unlocked) {
+                            g2d.setColor(new Color(100, 255, 100, 150));
+                            g2d.fillRect(x, y, size, size);
+                        }
+                    } else {
+                        g2d.setColor(new Color(60, 60, 60));
+                        g2d.fillRect(x, y, size, size);
+                        g2d.setColor(unlocked ? new Color(100, 200, 100) : new Color(150, 100, 50));
+                        g2d.fillRect(x + size/4, y, size/2, size);
+                    }
+                    break;
+                default:
+                    BufferedImage floorSprite = spriteManager.getTileSprite(TileType.FLOOR);
+                    if (floorSprite != null) {
+                        g2d.drawImage(floorSprite, x, y, size, size, null);
+                    } else {
+                        g2d.setColor(new Color(60, 60, 60));
+                        g2d.fillRect(x, y, size, size);
+                        g2d.setColor(new Color(80, 80, 80));
+                        g2d.drawRect(x, y, size, size);
+                    }
+            }
         }
     }
 
@@ -199,27 +221,53 @@ public class GamePanel extends JPanel {
     }
 
     private void drawPlayer(Graphics2D g2d, PlayerState player, int x, int y, int size, boolean isCurrent) {
-        Color playerColor;
-        String character = player.characterType;
-        if (character.contains("Красный")) playerColor = Color.RED;
-        else if (character.contains("Синий")) playerColor = Color.BLUE;
-        else if (character.contains("Зеленый")) playerColor = Color.GREEN;
-        else playerColor = Color.GRAY;
+        // Определяем направление персонажа (по умолчанию DOWN)
+        Direction direction = player.direction != null ? player.direction : Direction.DOWN;
+        
+        // Получаем кадр анимации на основе времени
+        long currentTime = System.currentTimeMillis();
+        int frame = spriteManager.getAnimationFrame(currentTime - animationStartTime, 4);
+        
+        // Получаем спрайт персонажа
+        BufferedImage sprite = spriteManager.getPlayerSprite(player.characterType, direction, frame);
+        
+        // Увеличиваем размер персонажа в 2 раза
+        int playerSize = size * 2;
+        // Центрируем персонажа в ячейке
+        int playerX = x - (playerSize - size) / 2;
+        int playerY = y - (playerSize - size) / 2;
+        
+        if (sprite != null) {
+            // Рисуем спрайт увеличенным в 2 раза
+            g2d.drawImage(sprite, playerX, playerY, playerSize, playerSize, null);
+            
+            // Желтая обводка убрана по запросу
+        } else {
+            // Fallback на старый способ
+            Color playerColor;
+            String character = player.characterType;
+            if (character.contains("Красный")) playerColor = Color.RED;
+            else if (character.contains("Синий")) playerColor = Color.BLUE;
+            else if (character.contains("Зеленый")) playerColor = Color.GREEN;
+            else playerColor = Color.GRAY;
 
-        g2d.setColor(playerColor);
-        g2d.fillOval(x + 2, y + 2, size - 4, size - 4);
+            g2d.setColor(playerColor);
+            g2d.fillOval(playerX + 2, playerY + 2, playerSize - 4, playerSize - 4);
 
-        g2d.setColor(isCurrent ? Color.YELLOW : Color.BLACK);
-        g2d.setStroke(new BasicStroke(isCurrent ? 3 : 2));
-        g2d.drawOval(x + 2, y + 2, size - 4, size - 4);
+            g2d.setColor(Color.BLACK);
+            g2d.setStroke(new BasicStroke(2));
+            g2d.drawOval(playerX + 2, playerY + 2, playerSize - 4, playerSize - 4);
+        }
 
+        // Имя игрока (позиционируем относительно увеличенного персонажа)
         g2d.setColor(Color.WHITE);
         g2d.setFont(new Font("Arial", Font.BOLD, Math.max(8, size/4)));
         FontMetrics fm = g2d.getFontMetrics();
         String name = player.name.length() > 8 ? player.name.substring(0, 8) + "..." : player.name;
         int nameWidth = fm.stringWidth(name);
-        g2d.drawString(name, x + (size - nameWidth)/2, y - 5);
+        g2d.drawString(name, x + (size - nameWidth)/2, playerY - 5);
 
+        // Жизни (позиционируем относительно увеличенного персонажа)
         if (player.lives > 0) {
             g2d.setFont(new Font("Arial", Font.BOLD, Math.max(8, size/5)));
             FontMetrics livesFm = g2d.getFontMetrics();
@@ -227,10 +275,10 @@ public class GamePanel extends JPanel {
             int livesWidth = livesFm.stringWidth(livesText);
 
             g2d.setColor(new Color(0, 0, 0, 150));
-            g2d.fillRect(x + (size - livesWidth)/2 - 2, y + size + 2, livesWidth + 4, size/5 + 2);
+            g2d.fillRect(x + (size - livesWidth)/2 - 2, playerY + playerSize + 2, livesWidth + 4, size/5 + 2);
 
             g2d.setColor(player.lives == 1 ? Color.RED : player.lives == 2 ? Color.YELLOW : Color.GREEN);
-            g2d.drawString(livesText, x + (size - livesWidth)/2, y + size + size/5 + 2);
+            g2d.drawString(livesText, x + (size - livesWidth)/2, playerY + playerSize + size/5 + 2);
         }
     }
 
@@ -251,31 +299,48 @@ public class GamePanel extends JPanel {
     }
 
     private void drawEnemy(Graphics2D g2d, Enemy enemy, int x, int y, int size) {
-        Color enemyColor;
-        switch (enemy.type) {
-            case BAT: enemyColor = new Color(100, 50, 150); break;
-            case SKELETON: enemyColor = new Color(200, 200, 200); break;
-            case GHOST: enemyColor = new Color(100, 200, 200, 150); break;
-            default: enemyColor = Color.GRAY;
-        }
-
-        g2d.setColor(enemyColor);
-        if (enemy.type == Enemy.EnemyType.GHOST) {
-            g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.7f));
-            g2d.fillOval(x, y, size, size);
-            g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1.0f));
+        // Получаем кадр анимации
+        long currentTime = System.currentTimeMillis();
+        int frame = spriteManager.getAnimationFrame(currentTime - animationStartTime, enemy.type.speed);
+        
+        // Получаем направление врага
+        Direction direction = enemy.direction != null ? enemy.direction : Direction.DOWN;
+        
+        // Получаем спрайт врага
+        BufferedImage sprite = spriteManager.getEnemySprite(enemy.type, direction, frame);
+        
+        if (sprite != null) {
+            // Рисуем спрайт
+            g2d.drawImage(sprite, x, y, size, size, null);
         } else {
-            g2d.fillRect(x, y, size, size);
+            // Fallback на старый способ
+            Color enemyColor;
+            switch (enemy.type) {
+                case BAT: enemyColor = new Color(100, 50, 150); break;
+                case SKELETON: enemyColor = new Color(200, 200, 200); break;
+                case GHOST: enemyColor = new Color(100, 200, 200, 150); break;
+                default: enemyColor = Color.GRAY;
+            }
+
+            g2d.setColor(enemyColor);
+            if (enemy.type == Enemy.EnemyType.GHOST) {
+                g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.7f));
+                g2d.fillOval(x, y, size, size);
+                g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1.0f));
+            } else {
+                g2d.fillRect(x, y, size, size);
+            }
+
+            g2d.setColor(Color.BLACK);
+            g2d.setStroke(new BasicStroke(2));
+            if (enemy.type == Enemy.EnemyType.GHOST) {
+                g2d.drawOval(x, y, size, size);
+            } else {
+                g2d.drawRect(x, y, size, size);
+            }
         }
 
-        g2d.setColor(Color.BLACK);
-        g2d.setStroke(new BasicStroke(2));
-        if (enemy.type == Enemy.EnemyType.GHOST) {
-            g2d.drawOval(x, y, size, size);
-        } else {
-            g2d.drawRect(x, y, size, size);
-        }
-
+        // Полоса здоровья
         if (enemy.health < enemy.type.health) {
             int healthWidth = (int)(size * (enemy.health / (double)enemy.type.health));
             g2d.setColor(enemy.health > enemy.type.health/2 ? Color.GREEN : Color.RED);
@@ -296,41 +361,57 @@ public class GamePanel extends JPanel {
             int x = offsetX + patrolEnemy.x * cellSize;
             int y = offsetY + patrolEnemy.y * cellSize;
 
-            double pulse = Math.sin(System.currentTimeMillis() * 0.005) * 0.1 + 0.9;
-            int size = (int) (cellSize * pulse);
-            int offset = (cellSize - size) / 2;
-
-            g2d.setColor(Color.RED);
-            g2d.fillOval(x + offset, y + offset, size, size);
-
-            g2d.setColor(Color.BLACK);
-            g2d.setStroke(new BasicStroke(2));
-            g2d.drawOval(x + offset, y + offset, size, size);
-
-            int centerX = x + cellSize / 2;
-            int centerY = y + cellSize / 2;
-            g2d.setColor(Color.YELLOW);
-            g2d.setStroke(new BasicStroke(2));
-
-            if (patrolEnemy.axis == PatrolAxis.HORIZONTAL) {
-                if (patrolEnemy.direction == PatrolDirection.POSITIVE) {
-                    g2d.drawLine(centerX, centerY, centerX + size / 4, centerY);
-                    g2d.drawLine(centerX + size / 4, centerY, centerX + size / 6, centerY - size / 8);
-                    g2d.drawLine(centerX + size / 4, centerY, centerX + size / 6, centerY + size / 8);
-                } else {
-                    g2d.drawLine(centerX, centerY, centerX - size / 4, centerY);
-                    g2d.drawLine(centerX - size / 4, centerY, centerX - size / 6, centerY - size / 8);
-                    g2d.drawLine(centerX - size / 4, centerY, centerX - size / 6, centerY + size / 8);
-                }
+            // Получаем кадр анимации
+            long currentTime = System.currentTimeMillis();
+            int frame = spriteManager.getAnimationFrame(currentTime - animationStartTime, 2);
+            
+            // Получаем спрайт патрульного моба
+            BufferedImage sprite = spriteManager.getPatrolEnemySprite(
+                patrolEnemy.axis, 
+                patrolEnemy.direction, 
+                frame
+            );
+            
+            if (sprite != null) {
+                g2d.drawImage(sprite, x, y, cellSize, cellSize, null);
             } else {
-                if (patrolEnemy.direction == PatrolDirection.POSITIVE) {
-                    g2d.drawLine(centerX, centerY, centerX, centerY + size / 4);
-                    g2d.drawLine(centerX, centerY + size / 4, centerX - size / 8, centerY + size / 6);
-                    g2d.drawLine(centerX, centerY + size / 4, centerX + size / 8, centerY + size / 6);
+                // Fallback на старый способ
+                double pulse = Math.sin(System.currentTimeMillis() * 0.005) * 0.1 + 0.9;
+                int size = (int) (cellSize * pulse);
+                int offset = (cellSize - size) / 2;
+
+                g2d.setColor(Color.RED);
+                g2d.fillOval(x + offset, y + offset, size, size);
+
+                g2d.setColor(Color.BLACK);
+                g2d.setStroke(new BasicStroke(2));
+                g2d.drawOval(x + offset, y + offset, size, size);
+
+                int centerX = x + cellSize / 2;
+                int centerY = y + cellSize / 2;
+                g2d.setColor(Color.YELLOW);
+                g2d.setStroke(new BasicStroke(2));
+
+                if (patrolEnemy.axis == PatrolAxis.HORIZONTAL) {
+                    if (patrolEnemy.direction == PatrolDirection.POSITIVE) {
+                        g2d.drawLine(centerX, centerY, centerX + size / 4, centerY);
+                        g2d.drawLine(centerX + size / 4, centerY, centerX + size / 6, centerY - size / 8);
+                        g2d.drawLine(centerX + size / 4, centerY, centerX + size / 6, centerY + size / 8);
+                    } else {
+                        g2d.drawLine(centerX, centerY, centerX - size / 4, centerY);
+                        g2d.drawLine(centerX - size / 4, centerY, centerX - size / 6, centerY - size / 8);
+                        g2d.drawLine(centerX - size / 4, centerY, centerX - size / 6, centerY + size / 8);
+                    }
                 } else {
-                    g2d.drawLine(centerX, centerY, centerX, centerY - size / 4);
-                    g2d.drawLine(centerX, centerY - size / 4, centerX - size / 8, centerY - size / 6);
-                    g2d.drawLine(centerX, centerY - size / 4, centerX + size / 8, centerY - size / 6);
+                    if (patrolEnemy.direction == PatrolDirection.POSITIVE) {
+                        g2d.drawLine(centerX, centerY, centerX, centerY + size / 4);
+                        g2d.drawLine(centerX, centerY + size / 4, centerX - size / 8, centerY + size / 6);
+                        g2d.drawLine(centerX, centerY + size / 4, centerX + size / 8, centerY + size / 6);
+                    } else {
+                        g2d.drawLine(centerX, centerY, centerX, centerY - size / 4);
+                        g2d.drawLine(centerX, centerY - size / 4, centerX - size / 8, centerY - size / 6);
+                        g2d.drawLine(centerX, centerY - size / 4, centerX + size / 8, centerY - size / 6);
+                    }
                 }
             }
         }
@@ -358,53 +439,73 @@ public class GamePanel extends JPanel {
     }
 
     private void drawTrap(Graphics2D g2d, Trap trap, int x, int y, int cellSize) {
-        int trapDrawX = x;
-        int trapDrawY = y;
-        int trapWidth = cellSize / 4;
-        int trapHeight = cellSize / 4;
-
-        switch (trap.direction) {
-            case LEFT:
-                trapDrawX = x + cellSize - trapWidth - 2;
-                trapDrawY = y + (cellSize - trapHeight) / 2;
-                break;
-            case RIGHT:
-                trapDrawX = x + 2;
-                trapDrawY = y + (cellSize - trapHeight) / 2;
-                break;
-            case UP:
-                trapDrawX = x + (cellSize - trapWidth) / 2;
-                trapDrawY = y + cellSize - trapHeight - 2;
-                break;
-            case DOWN:
-                trapDrawX = x + (cellSize - trapWidth) / 2;
-                trapDrawY = y + 2;
-                break;
-        }
-
-        if (trap.attack == TrapAttack.ARROW) {
-            g2d.setColor(new Color(80, 80, 80));
-            g2d.fillRect(trapDrawX, trapDrawY, trapWidth, trapHeight);
-            g2d.setColor(Color.BLACK);
-            g2d.drawRect(trapDrawX, trapDrawY, trapWidth, trapHeight);
-
+        // Получаем спрайт ловушки
+        BufferedImage trapSprite = spriteManager.getTrapSprite(trap.attack, trap.direction);
+        
+        if (trapSprite != null) {
+            // Рисуем спрайт ловушки на стене
+            g2d.drawImage(trapSprite, x, y, cellSize, cellSize, null);
+            
+            // Если ловушка активна, добавляем эффект
             if (trap.active) {
-                g2d.setColor(Color.RED);
-                int centerX = trapDrawX + trapWidth / 2;
-                int centerY = trapDrawY + trapHeight / 2;
-                g2d.fillOval(centerX - 3, centerY - 3, 6, 6);
+                if (trap.attack == TrapAttack.ARROW) {
+                    g2d.setColor(new Color(255, 100, 100, 150));
+                    g2d.fillRect(x, y, cellSize, cellSize);
+                } else if (trap.attack == TrapAttack.FIRE) {
+                    g2d.setColor(new Color(255, 150, 0, 200));
+                    g2d.fillRect(x, y, cellSize, cellSize);
+                }
             }
-        } else if (trap.attack == TrapAttack.FIRE) {
-            if (trap.active) {
-                g2d.setColor(new Color(255, 100, 0));
-            } else {
-                double pulse = Math.sin(System.currentTimeMillis() * 0.01) * 0.3 + 0.7;
-                int alpha = (int) (255 * pulse);
-                g2d.setColor(new Color(255, 150, 0, alpha));
+        } else {
+            // Fallback на старый способ
+            int trapDrawX = x;
+            int trapDrawY = y;
+            int trapWidth = cellSize / 4;
+            int trapHeight = cellSize / 4;
+
+            switch (trap.direction) {
+                case LEFT:
+                    trapDrawX = x + cellSize - trapWidth - 2;
+                    trapDrawY = y + (cellSize - trapHeight) / 2;
+                    break;
+                case RIGHT:
+                    trapDrawX = x + 2;
+                    trapDrawY = y + (cellSize - trapHeight) / 2;
+                    break;
+                case UP:
+                    trapDrawX = x + (cellSize - trapWidth) / 2;
+                    trapDrawY = y + cellSize - trapHeight - 2;
+                    break;
+                case DOWN:
+                    trapDrawX = x + (cellSize - trapWidth) / 2;
+                    trapDrawY = y + 2;
+                    break;
             }
-            g2d.fillOval(trapDrawX, trapDrawY, trapWidth, trapHeight);
-            g2d.setColor(Color.BLACK);
-            g2d.drawOval(trapDrawX, trapDrawY, trapWidth, trapHeight);
+
+            if (trap.attack == TrapAttack.ARROW) {
+                g2d.setColor(new Color(80, 80, 80));
+                g2d.fillRect(trapDrawX, trapDrawY, trapWidth, trapHeight);
+                g2d.setColor(Color.BLACK);
+                g2d.drawRect(trapDrawX, trapDrawY, trapWidth, trapHeight);
+
+                if (trap.active) {
+                    g2d.setColor(Color.RED);
+                    int centerX = trapDrawX + trapWidth / 2;
+                    int centerY = trapDrawY + trapHeight / 2;
+                    g2d.fillOval(centerX - 3, centerY - 3, 6, 6);
+                }
+            } else if (trap.attack == TrapAttack.FIRE) {
+                if (trap.active) {
+                    g2d.setColor(new Color(255, 100, 0));
+                } else {
+                    double pulse = Math.sin(System.currentTimeMillis() * 0.01) * 0.3 + 0.7;
+                    int alpha = (int) (255 * pulse);
+                    g2d.setColor(new Color(255, 150, 0, alpha));
+                }
+                g2d.fillOval(trapDrawX, trapDrawY, trapWidth, trapHeight);
+                g2d.setColor(Color.BLACK);
+                g2d.drawOval(trapDrawX, trapDrawY, trapWidth, trapHeight);
+            }
         }
     }
 

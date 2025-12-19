@@ -230,6 +230,7 @@ public class GameWorld {
         if (isValidMove(newX, newY)) {
             player.x = newX;
             player.y = newY;
+            player.direction = direction; // Обновляем направление
             player.lastMoveTime = System.currentTimeMillis();
             checkTileCollisions(player);
             checkEnemyCollisions(player);

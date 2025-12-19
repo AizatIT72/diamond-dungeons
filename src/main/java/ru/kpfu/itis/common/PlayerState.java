@@ -12,6 +12,7 @@ public class PlayerState implements Serializable {
     public String name;
     public String characterType;
     public int x, y;
+    public Direction direction;
     public int lives;  
     public int diamonds;
     public boolean hasKey;
@@ -25,6 +26,7 @@ public class PlayerState implements Serializable {
         this.characterType = characterType;
         this.x = 1;
         this.y = 1;
+        this.direction = Direction.DOWN;
         this.lives = 3;  
         this.diamonds = 0;
         this.hasKey = false;
