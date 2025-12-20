@@ -8,6 +8,7 @@ import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.image.BufferedImage;
+import java.awt.AlphaComposite;
 
 public class GamePanel extends JPanel {
     private GameWorld.GameState currentState;
@@ -139,14 +140,15 @@ public class GamePanel extends JPanel {
                     drawTile(g2d, tile,
                             offsetX + x * cellSize,
                             offsetY + y * cellSize,
-                            cellSize);
+                            cellSize, x, y);
                 }
             }
         }
     }
 
-    private void drawTile(Graphics2D g2d, TileType tile, int x, int y, int size) {
-        BufferedImage sprite = spriteManager.getTileSprite(tile);
+    private void drawTile(Graphics2D g2d, TileType tile, int x, int y, int size, int tileX, int tileY) {
+        // Используем детерминированный выбор текстуры на основе позиции
+        BufferedImage sprite = spriteManager.getTileSprite(tile, tileX, tileY);
         
         if (sprite != null) {
             // Масштабируем спрайт под размер ячейки
@@ -193,7 +195,7 @@ public class GamePanel extends JPanel {
                     }
                     break;
                 default:
-                    BufferedImage floorSprite = spriteManager.getTileSprite(TileType.FLOOR);
+                    BufferedImage floorSprite = spriteManager.getTileSprite(TileType.FLOOR, tileX, tileY);
                     if (floorSprite != null) {
                         g2d.drawImage(floorSprite, x, y, size, size, null);
                     } else {
@@ -246,9 +248,9 @@ public class GamePanel extends JPanel {
             // Fallback на старый способ
             Color playerColor;
             String character = player.characterType;
-            if (character.contains("Красный")) playerColor = Color.RED;
-            else if (character.contains("Синий")) playerColor = Color.BLUE;
-            else if (character.contains("Зеленый")) playerColor = Color.GREEN;
+            if (character.contains("Зеленый")) playerColor = Color.GREEN;
+            else if (character.contains("Серебряный")) playerColor = Color.LIGHT_GRAY;
+            else if (character.contains("Темный")) playerColor = Color.DARK_GRAY;
             else playerColor = Color.GRAY;
 
             g2d.setColor(playerColor);
@@ -452,23 +454,24 @@ public class GamePanel extends JPanel {
     }
 
     private void drawTrap(Graphics2D g2d, Trap trap, int x, int y, int cellSize) {
-        // Получаем спрайт ловушки
-        BufferedImage trapSprite = spriteManager.getTrapSprite(trap.attack, trap.direction);
+        // Получаем кадр анимации для активных ловушек
+        long currentTime = System.currentTimeMillis();
+        int frame = 0;
+        if (trap.active) {
+            frame = spriteManager.getAnimationFrame(currentTime - animationStartTime, 8); // Быстрая анимация
+        }
+        
+        // Получаем спрайт ловушки (анимированный если активна, иначе статичный)
+        BufferedImage trapSprite;
+        if (trap.active) {
+            trapSprite = spriteManager.getAnimatedTrapSprite(trap.attack, trap.direction, frame);
+        } else {
+            trapSprite = spriteManager.getTrapSprite(trap.attack, trap.direction);
+        }
         
         if (trapSprite != null) {
             // Рисуем спрайт ловушки на стене
             g2d.drawImage(trapSprite, x, y, cellSize, cellSize, null);
-            
-            // Если ловушка активна, добавляем эффект
-            if (trap.active) {
-                if (trap.attack == TrapAttack.ARROW) {
-                    g2d.setColor(new Color(255, 100, 100, 150));
-                    g2d.fillRect(x, y, cellSize, cellSize);
-                } else if (trap.attack == TrapAttack.FIRE) {
-                    g2d.setColor(new Color(255, 150, 0, 200));
-                    g2d.fillRect(x, y, cellSize, cellSize);
-                }
-            }
         } else {
             // Fallback на старый способ
             int trapDrawX = x;
@@ -549,30 +552,38 @@ public class GamePanel extends JPanel {
             }
         }
 
-        Color zoneColor = trap.attack == TrapAttack.ARROW
-                ? new Color(255, 100, 100, 180)
-                : new Color(255, 150, 0, 200);
+        // Получаем кадр анимации для эффекта
+        long currentTime = System.currentTimeMillis();
+        int frame = spriteManager.getAnimationFrame(currentTime - animationStartTime, 8);
 
         for (int[] cell : targetCells) {
             int cellX = offsetX + cell[0] * cellSize;
             int cellY = offsetY + cell[1] * cellSize;
 
-            g2d.setColor(zoneColor);
-            g2d.fillRect(cellX, cellY, cellSize, cellSize);
-
+            // Для активных ловушек рисуем анимированные эффекты
             if (trap.attack == TrapAttack.ARROW) {
-                g2d.setColor(Color.RED);
-                g2d.setStroke(new BasicStroke(3));
-                g2d.drawLine(cellX + cellSize/4, cellY + cellSize/2,
-                        cellX + 3*cellSize/4, cellY + cellSize/2);
-                g2d.drawLine(cellX + cellSize/2, cellY + cellSize/4,
-                        cellX + cellSize/2, cellY + 3*cellSize/4);
+                // Анимированная стрела в зоне поражения
+                BufferedImage arrowSprite = spriteManager.getAnimatedTrapSprite(trap.attack, trap.direction, frame);
+                if (arrowSprite != null) {
+                    g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.7f));
+                    g2d.drawImage(arrowSprite, cellX, cellY, cellSize, cellSize, null);
+                    g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1.0f));
+                } else {
+                    // Fallback
+                    g2d.setColor(new Color(255, 100, 100, 180));
+                    g2d.fillRect(cellX, cellY, cellSize, cellSize);
+                }
             } else if (trap.attack == TrapAttack.FIRE) {
-                g2d.setColor(new Color(255, 200, 0));
-                for (int i = 0; i < 3; i++) {
-                    int flameX = cellX + cellSize/4 + i * cellSize/4;
-                    int flameY = cellY + cellSize/3;
-                    g2d.fillOval(flameX, flameY, cellSize/4, cellSize/3);
+                // Анимированное пламя в зоне поражения
+                BufferedImage fireSprite = spriteManager.getAnimatedTrapSprite(trap.attack, trap.direction, frame);
+                if (fireSprite != null) {
+                    g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.8f));
+                    g2d.drawImage(fireSprite, cellX, cellY, cellSize, cellSize, null);
+                    g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 1.0f));
+                } else {
+                    // Fallback
+                    g2d.setColor(new Color(255, 150, 0, 200));
+                    g2d.fillRect(cellX, cellY, cellSize, cellSize);
                 }
             }
         }

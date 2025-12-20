@@ -58,7 +58,7 @@ public class PlayerState implements Serializable {
 
     public int getMoveSpeed() {
         switch (characterType) {
-            case "Зеленый плут": return 2;
+            case "🔮 Темный маг": return 2;
             default: return 1;
         }
     }

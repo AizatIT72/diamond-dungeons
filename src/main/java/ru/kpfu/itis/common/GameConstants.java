@@ -17,9 +17,9 @@ public class GameConstants {
     public static final Color SECONDARY_COLOR = new Color(100, 200, 255);
 
     public static final String[] CHARACTER_NAMES = {
-            "⚔️ Красный воин",
-            "🔮 Синий маг",
-            "🏹 Зеленый плут"
+            "🏹 Зеленый лучник",
+            "⚔️ Серебряный рыцарь",
+            "🔮 Темный маг"
     };
 
     public static final int[] PLAYER_HEALTH = {180, 120, 100};

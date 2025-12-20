@@ -12,6 +12,9 @@ public class SpriteManager {
     
     // Спрайты для тайлов
     private Map<TileType, BufferedImage> tileSprites;
+    // Множественные текстуры для разнообразия
+    private java.util.List<BufferedImage> wallTextures;
+    private java.util.List<BufferedImage> floorTextures;
     
     // Спрайты для персонажей (3 типа, 4 направления, несколько кадров анимации)
     private Map<String, BufferedImage[][]> playerSprites; // [characterType][direction][frame]
@@ -22,6 +25,8 @@ public class SpriteManager {
     
     // Спрайты для ловушек
     private Map<TrapAttack, Map<Direction, BufferedImage>> trapSprites;
+    // Анимированные спрайты для ловушек (огонь и стрелы)
+    private Map<TrapAttack, Map<Direction, BufferedImage[]>> animatedTrapSprites;
     
     // Размер спрайта
     private static final int SPRITE_SIZE = 32;
@@ -32,7 +37,10 @@ public class SpriteManager {
         playerSprites = new HashMap<>();
         enemySprites = new HashMap<>();
         trapSprites = new HashMap<>();
+        animatedTrapSprites = new HashMap<>();
         patrolEnemySprites = new BufferedImage[2][2][ANIMATION_FRAMES];
+        wallTextures = new java.util.ArrayList<>();
+        floorTextures = new java.util.ArrayList<>();
         loadAllSprites();
     }
     
@@ -63,50 +71,27 @@ public class SpriteManager {
     }
     
     private void loadTileSprites() {
-        // Пытаемся загрузить из файлов, если не получается - используем программную генерацию
-        // Пробуем разные тайлы для стены (светлые)
-        BufferedImage wall = null;
-        String[] wallTiles = {"sprites/tiles/Tile_03.png", "sprites/tiles/Tile_05.png", 
-                              "sprites/tiles/Tile_07.png", "sprites/tiles/Tile_11.png"};
-        for (String path : wallTiles) {
-            wall = SpriteSheetLoader.loadImage(path);
-            if (wall != null) {
-                // Делаем тайл светлее, если он темный
-                wall = adjustImageBrightness(wall, 1.5f);
-                break;
-            }
-        }
-        if (wall != null) {
-            tileSprites.put(TileType.WALL, wall);
+        // Загружаем все текстуры стен из папки walls/
+        loadWallTextures();
+        
+        // Загружаем все текстуры полов из папки floors/
+        loadFloorTextures();
+        
+        // Устанавливаем дефолтные спрайты (для обратной совместимости)
+        if (!wallTextures.isEmpty()) {
+            tileSprites.put(TileType.WALL, wallTextures.get(0));
         } else {
             tileSprites.put(TileType.WALL, createWallSprite());
         }
         
-        // Пробуем разные тайлы для пола (темные)
-        BufferedImage floor = null;
-        String[] floorTiles = {"sprites/tiles/Tile_04.png", "sprites/tiles/Tile_06.png", 
-                               "sprites/tiles/Tile_09.png", "sprites/tiles/Tile_13.png"};
-        for (String path : floorTiles) {
-            floor = SpriteSheetLoader.loadImage(path);
-            if (floor != null) {
-                // Делаем тайл темнее, если он светлый
-                floor = adjustImageBrightness(floor, 0.6f);
-                break;
-            }
-        }
-        if (floor != null) {
-            tileSprites.put(TileType.FLOOR, floor);
+        if (!floorTextures.isEmpty()) {
+            tileSprites.put(TileType.FLOOR, floorTextures.get(0));
         } else {
             tileSprites.put(TileType.FLOOR, createFloorSprite());
         }
         
-        // Алмаз - используем объект из папки objects или создаем программно
-        BufferedImage diamond = SpriteSheetLoader.loadImage("sprites/objects/Other/1.png");
-        if (diamond != null) {
-            tileSprites.put(TileType.DIAMOND, diamond);
-        } else {
-            tileSprites.put(TileType.DIAMOND, createDiamondSprite());
-        }
+        // Алмаз - используем программно созданный синий ромбик
+        tileSprites.put(TileType.DIAMOND, createDiamondSprite());
         
         // Дверь
         BufferedImage door = SpriteSheetLoader.loadImage("sprites/objects/Doors/1.png");
@@ -121,8 +106,8 @@ public class SpriteManager {
     }
     
     private void loadPlayerSprites() {
-        // Маппинг: Красный -> папка 1, Синий -> папка 2, Зеленый -> папка 3
-        String[] characterTypes = {"Красный", "Синий", "Зеленый"};
+        // Маппинг: Зеленый лучник -> папка 1, Серебряный рыцарь -> папка 2, Темный маг -> папка 3
+        String[] characterTypes = {"Зеленый лучник", "Серебряный рыцарь", "Темный маг"};
         int[] folderNumbers = {1, 2, 3};
         
         Direction[] directions = Direction.values();
@@ -346,19 +331,73 @@ public class SpriteManager {
     }
     
     private void loadTrapSprites() {
-        // Стрелы
+        // Загружаем анимированные спрайты для стрел
+        Map<Direction, BufferedImage[]> arrowAnimations = new HashMap<>();
+        Map<Direction, String> arrowFiles = new HashMap<>();
+        arrowFiles.put(Direction.UP, "sprites/traps/arrow/arrow_from_down_to_up.png");
+        arrowFiles.put(Direction.DOWN, "sprites/traps/arrow/arrow_from_up_to_down.png");
+        arrowFiles.put(Direction.LEFT, "sprites/traps/arrow/arrow_from_right_to_left.png");
+        arrowFiles.put(Direction.RIGHT, "sprites/traps/arrow/arrow_from_left_to_right.png");
+        
+        for (Direction dir : Direction.values()) {
+            String path = arrowFiles.get(dir);
+            BufferedImage[] frames = SpriteSheetLoader.loadAndSplitAuto(path);
+            if (frames != null && frames.length > 0) {
+                arrowAnimations.put(dir, frames);
+            } else {
+                // Fallback - создаем один кадр программно
+                BufferedImage[] fallback = {createArrowTrapSprite(dir)};
+                arrowAnimations.put(dir, fallback);
+            }
+        }
+        animatedTrapSprites.put(TrapAttack.ARROW, arrowAnimations);
+        
+        // Для обратной совместимости - статичные спрайты
         Map<Direction, BufferedImage> arrowSprites = new HashMap<>();
         for (Direction dir : Direction.values()) {
-            arrowSprites.put(dir, createArrowTrapSprite(dir));
+            BufferedImage[] frames = arrowAnimations.get(dir);
+            if (frames != null && frames.length > 0) {
+                arrowSprites.put(dir, frames[0]); // Первый кадр для статичного отображения
+            } else {
+                arrowSprites.put(dir, createArrowTrapSprite(dir));
+            }
         }
         trapSprites.put(TrapAttack.ARROW, arrowSprites);
         
-        // Пламя
+        // Загружаем анимированные спрайты для огня
+        Map<Direction, BufferedImage[]> fireAnimations = new HashMap<>();
+        Map<Direction, String> fireFiles = new HashMap<>();
+        fireFiles.put(Direction.UP, "sprites/traps/fire/fire_from_down_to_up.png");
+        fireFiles.put(Direction.DOWN, "sprites/traps/fire/fire_frome_up_to_down.png");
+        fireFiles.put(Direction.LEFT, "sprites/traps/fire/fire_frome_left_to_righ.png");
+        fireFiles.put(Direction.RIGHT, "sprites/traps/fire/fire_frome_left_to_right.png");
+        
+        for (Direction dir : Direction.values()) {
+            String path = fireFiles.get(dir);
+            BufferedImage[] frames = SpriteSheetLoader.loadAndSplitAuto(path);
+            if (frames != null && frames.length > 0) {
+                fireAnimations.put(dir, frames);
+            } else {
+                // Fallback - создаем один кадр программно
+                BufferedImage[] fallback = {createFireTrapSprite(dir)};
+                fireAnimations.put(dir, fallback);
+            }
+        }
+        animatedTrapSprites.put(TrapAttack.FIRE, fireAnimations);
+        
+        // Для обратной совместимости - статичные спрайты
         Map<Direction, BufferedImage> fireSprites = new HashMap<>();
         for (Direction dir : Direction.values()) {
-            fireSprites.put(dir, createFireTrapSprite(dir));
+            BufferedImage[] frames = fireAnimations.get(dir);
+            if (frames != null && frames.length > 0) {
+                fireSprites.put(dir, frames[0]); // Первый кадр для статичного отображения
+            } else {
+                fireSprites.put(dir, createFireTrapSprite(dir));
+            }
         }
         trapSprites.put(TrapAttack.FIRE, fireSprites);
+        
+        System.out.println("Загружены анимированные спрайты для ловушек");
     }
     
     // Создание спрайтов программно
@@ -537,18 +576,14 @@ public class SpriteManager {
             g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         
         Color playerColor;
-        switch (characterType) {
-            case "Красный":
-                playerColor = new Color(200, 50, 50);
-                break;
-            case "Синий":
-                playerColor = new Color(50, 100, 200);
-                break;
-            case "Зеленый":
-                playerColor = new Color(50, 200, 50);
-                break;
-            default:
-                playerColor = Color.GRAY;
+        if (characterType.contains("Зеленый")) {
+            playerColor = new Color(50, 200, 50);
+        } else if (characterType.contains("Серебряный")) {
+            playerColor = new Color(192, 192, 192);
+        } else if (characterType.contains("Темный")) {
+            playerColor = new Color(64, 64, 64);
+        } else {
+            playerColor = Color.GRAY;
         }
         
         // Тело персонажа
@@ -810,9 +845,59 @@ public class SpriteManager {
         }
     }
     
+    private void loadWallTextures() {
+        // Используем только Tile_33.png для стены
+        BufferedImage img = SpriteSheetLoader.loadImage("sprites/tiles/walls/Tile_33.png");
+        if (img != null) {
+            // Делаем тайл светлее для стены
+            img = adjustImageBrightness(img, 1.2f);
+            wallTextures.add(img);
+        }
+        
+        System.out.println("Загружено текстур стен: " + wallTextures.size());
+    }
+    
+    private void loadFloorTextures() {
+        // Используем Tile_39.png для пола
+        BufferedImage img = SpriteSheetLoader.loadImage("sprites/tiles/floors/Tile_39.png");
+        if (img != null) {
+            // Делаем тайл темнее для пола
+            img = adjustImageBrightness(img, 0.7f);
+            floorTextures.add(img);
+        }
+        
+        System.out.println("Загружено текстур полов: " + floorTextures.size());
+    }
+    
     // Геттеры для спрайтов
     public BufferedImage getTileSprite(TileType tile) {
+        // Для обратной совместимости - возвращаем первую доступную текстуру
+        if (tile == TileType.WALL && !wallTextures.isEmpty()) {
+            return wallTextures.get(0);
+        }
+        if (tile == TileType.FLOOR && !floorTextures.isEmpty()) {
+            return floorTextures.get(0);
+        }
         return tileSprites.getOrDefault(tile, createFloorSprite());
+    }
+    
+    /**
+     * Получить спрайт тайла на основе позиции (для детерминированного выбора)
+     * Это позволяет использовать разные текстуры для разных позиций, создавая разнообразие
+     */
+    public BufferedImage getTileSprite(TileType tile, int x, int y) {
+        // Для стен и полов выбираем текстуру на основе позиции (детерминированно)
+        // Это создает разнообразие, но каждый тайл всегда будет иметь одну и ту же текстуру
+        if (tile == TileType.WALL && !wallTextures.isEmpty()) {
+            int index = Math.abs((x * 31 + y * 17) % wallTextures.size());
+            return wallTextures.get(index);
+        }
+        if (tile == TileType.FLOOR && !floorTextures.isEmpty()) {
+            int index = Math.abs((x * 31 + y * 17) % floorTextures.size());
+            return floorTextures.get(index);
+        }
+        // Для остальных тайлов используем стандартный метод
+        return getTileSprite(tile);
     }
     
     public BufferedImage getPlayerSprite(String characterType, Direction direction, int frame) {
@@ -820,9 +905,9 @@ public class SpriteManager {
             return null;
         }
         
-        String key = characterType.contains("Красный") ? "Красный" :
-                    characterType.contains("Синий") ? "Синий" :
-                    characterType.contains("Зеленый") ? "Зеленый" : "Красный";
+        String key = characterType.contains("Зеленый лучник") ? "Зеленый лучник" :
+                    characterType.contains("Серебряный рыцарь") ? "Серебряный рыцарь" :
+                    characterType.contains("Темный маг") ? "Темный маг" : "Зеленый лучник";
         
         BufferedImage[][] sprites = playerSprites.get(key);
         if (sprites == null || sprites.length == 0) {
@@ -895,6 +980,32 @@ public class SpriteManager {
         }
         
         return sprites.get(direction);
+    }
+    
+    /**
+     * Получить анимированный спрайт ловушки (для активных ловушек)
+     */
+    public BufferedImage getAnimatedTrapSprite(TrapAttack attack, Direction direction, int frame) {
+        if (attack == null || direction == null) {
+            return null;
+        }
+        
+        Map<Direction, BufferedImage[]> animations = animatedTrapSprites.get(attack);
+        if (animations == null) {
+            // Fallback на статичный спрайт
+            return getTrapSprite(attack, direction);
+        }
+        
+        BufferedImage[] frames = animations.get(direction);
+        if (frames == null || frames.length == 0) {
+            return getTrapSprite(attack, direction);
+        }
+        
+        if (frame < 0 || frame >= frames.length) {
+            frame = 0;
+        }
+        
+        return frames[frame];
     }
     
     public int getAnimationFrame(long time, int speed) {

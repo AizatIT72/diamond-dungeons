@@ -8,20 +8,37 @@ import java.io.InputStream;
 public class SpriteSheetLoader {
     
     /**
-     * Загружает изображение из ресурсов
+     * Загружает изображение из ресурсов с поддержкой прозрачности
      */
     public static BufferedImage loadImage(String path) {
         try {
             InputStream is = SpriteSheetLoader.class.getClassLoader().getResourceAsStream(path);
             if (is == null) {
                 System.err.println("Не найден ресурс: " + path);
-                return null;
+                // Пробуем альтернативный способ загрузки
+                is = ClassLoader.getSystemResourceAsStream(path);
+                if (is == null) {
+                    System.err.println("Альтернативный способ загрузки также не сработал: " + path);
+                    return null;
+                }
             }
             BufferedImage img = ImageIO.read(is);
             is.close();
+            if (img != null) {
+                // Конвертируем изображение в ARGB формат для правильной обработки прозрачности
+                if (img.getType() != BufferedImage.TYPE_INT_ARGB) {
+                    BufferedImage converted = new BufferedImage(img.getWidth(), img.getHeight(), BufferedImage.TYPE_INT_ARGB);
+                    java.awt.Graphics2D g = converted.createGraphics();
+                    g.drawImage(img, 0, 0, null);
+                    g.dispose();
+                    img = converted;
+                }
+                System.out.println("✓ Изображение загружено: " + path + " (размер: " + img.getWidth() + "x" + img.getHeight() + ", тип: ARGB)");
+            }
             return img;
         } catch (IOException e) {
             System.err.println("Ошибка загрузки изображения " + path + ": " + e.getMessage());
+            e.printStackTrace();
             return null;
         }
     }
@@ -52,7 +69,17 @@ public class SpriteSheetLoader {
         for (int i = 0; i < frames; i++) {
             int x = i * frameWidth;
             if (x + frameWidth <= sheetWidth) {
-                result[i] = spriteSheet.getSubimage(x, 0, frameWidth, frameHeight);
+                BufferedImage subImage = spriteSheet.getSubimage(x, 0, frameWidth, frameHeight);
+                // Конвертируем в ARGB для сохранения прозрачности
+                if (subImage.getType() != BufferedImage.TYPE_INT_ARGB) {
+                    BufferedImage converted = new BufferedImage(frameWidth, frameHeight, BufferedImage.TYPE_INT_ARGB);
+                    java.awt.Graphics2D g = converted.createGraphics();
+                    g.drawImage(subImage, 0, 0, null);
+                    g.dispose();
+                    result[i] = converted;
+                } else {
+                    result[i] = subImage;
+                }
             } else {
                 // Если кадр не помещается, создаем пустой кадр
                 result[i] = new BufferedImage(frameWidth, frameHeight, BufferedImage.TYPE_INT_ARGB);

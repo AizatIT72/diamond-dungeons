@@ -297,7 +297,7 @@ public class GameWorld {
         collectedDiamonds.add(diamondKey);
         map[y][x] = TileType.FLOOR;
 
-        if (player.characterType.contains("Зеленый")) {
+        if (player.characterType.contains("Темный")) {
             player.addDiamond();
             broadcast(new Message(Message.ACTION, player.id,
                     player.name + " собрал 2 алмаза благодаря своей ловкости!"));
